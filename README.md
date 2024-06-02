@@ -12,5 +12,7 @@ If you would like to run locally:
    | Filename | Description |
    |--------------------|------------------------------------|
    | `bot-token` | Token for Discord bot |
+   | `db-password` | Default password for database |
+   | `db-root-password` | Root password for the database |
 4. Copy [/db/.env.template](./db/.env.template) to `db/.env`, and adjust values as necessary.
 5. Run the bot with `docker compose up -d --build`.

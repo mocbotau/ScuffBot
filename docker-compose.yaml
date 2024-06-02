@@ -6,5 +6,37 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml.local
       - .local-secrets:/app/.local-secrets
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - ./.env.local
+    networks:
+      - backend
+  # MySQL Server
+  db:
+    image: "mysql/mysql-server:8.0"
+    restart: unless-stopped
+    env_file:
+      - ./db/.env
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/data:/docker-entrypoint-initdb.d/
+    networks:
+      - backend
+  # phpmyadmin
+  phpmyadmin:
+    depends_on:
+      - db
+    image: phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+    networks:
+      - backend
+volumes:
+  db_data:
+networks:
+  backend:
