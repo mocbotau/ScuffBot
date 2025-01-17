@@ -7,3 +7,5 @@ assets
 
 .vscode
 .env
+config.yaml.local
+.local-secrets/*

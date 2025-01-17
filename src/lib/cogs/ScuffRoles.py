@@ -1,11 +1,8 @@
 from discord.ext import commands
-from discord.ui import Button, View
-from discord import app_commands, Object
-from lib.bot import config, SCUFFBOT, DEV_GUILD
-from typing import Literal, Union, Optional
+from discord import Object
+from src.lib.bot import config
 import discord
 import logging
-
 import re
 import asyncio
 

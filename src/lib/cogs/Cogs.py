@@ -1,8 +1,6 @@
 from discord.ext import commands
-from discord.ui import Button, View
 from discord import app_commands
-from lib.bot import config, SCUFFBOT, DEV_GUILD
-from typing import Literal, Union, Optional
+from src.lib.bot import config
 import discord
 import logging
 
@@ -21,20 +19,20 @@ class Cogs(commands.Cog):
         self.logger = logging.getLogger(__name__)
 
         if self.bot.is_dev:
-            for cog in [path.split("\\")[-1][:-3] if os.name == "nt" else path.split("\\")[-1][:-3].split("/")[-1] for path in glob("./lib/cogs/*.py")]:
+            for cog in [path.split("\\")[-1][:-3] if os.name == "nt" else path.split("\\")[-1][:-3].split("/")[-1] for path in glob("./src/lib/cogs/*.py")]:
                 if cog not in ["Cogs", "ErrorHandler", "SixMans"]:
                     self.disabled_cogs.append(cog)
         else:
             self.disabled_cogs.append("Template")
 
     async def fetch_cogs(self):
-        for cog in [path.split("\\")[-1][:-3] if os.name == "nt" else path.split("\\")[-1][:-3].split("/")[-1] for path in glob("./lib/cogs/*.py")]:
+        for cog in [path.split("\\")[-1][:-3] if os.name == "nt" else path.split("\\")[-1][:-3].split("/")[-1] for path in glob("./src/lib/cogs/*.py")]:
             if cog != "Cogs" and cog not in self.disabled_cogs:
                 self.unloaded_cogs.append(cog)
 
     async def load_cog(self, cog):
         try:
-            await self.bot.load_extension(f"lib.cogs.{cog}")
+            await self.bot.load_extension(f"src.lib.cogs.{cog}")
         except Exception as e:
             self.logger.error(f"[COG] {cog} failed to load. {e}")
             traceback.print_exc()
@@ -42,7 +40,7 @@ class Cogs(commands.Cog):
 
     async def unload_cog(self, cog):
         try:
-            await self.bot.unload_extension(f"lib.cogs.{cog}")
+            await self.bot.unload_extension(f"src.lib.cogs.{cog}")
         except Exception as e:
             self.logger.error(f"[COG] {cog} failed to unload. {e}")
             traceback.print_exc()
@@ -50,8 +48,8 @@ class Cogs(commands.Cog):
 
     async def reload_cog(self, cog):
         try:
-            await self.bot.unload_extension(f"lib.cogs.{cog}")
-            await self.bot.load_extension(f"lib.cogs.{cog}")
+            await self.bot.unload_extension(f"src.lib.cogs.{cog}")
+            await self.bot.load_extension(f"src.lib.cogs.{cog}")
         except Exception as e:
             self.logger.error(f"[COG] {cog} failed to reload. {e}")
             traceback.print_exc()

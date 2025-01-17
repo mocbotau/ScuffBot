@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../infra-helm-charts/charts/discord-bot/values.schema.json
+environment: "dev"
+
+version: "${COMMIT_SHA}"
+
+deployments:
+  - name: "scuffbot"
+    image: "${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO}:${REPO_NAME}"
+    config:
+      fileVariable: "scuffbotConfig"
+    environment:
+      BOT_TOKEN: /secrets/bot-token
+      CONFIG_FILE: /config/config.yaml
+      DB_DATABASE: SCUFFBOT
+      DB_HOST: scuffbot-db
+      DB_PASSWORD: /secrets/db-password
+      DB_USER: SCUFFBOT
+    secrets:
+      bot-token: "${BOT_TOKEN}"
+      db-password: "${DB_PASSWORD}"
+  - name: "scuffbot-db"
+    image: "mysql/mysql-server:8.0"
+    config:
+      fileName: "init.sql"
+      fileVariable: sqlInitFile
+      mountPath: /docker-entrypoint-initdb.d/
+    containerPort: 3306
+    environment:
+      MYSQL_DATABASE: SCUFFBOT
+      MYSQL_USER: SCUFFBOT
+      MYSQL_PASSWORD: /secrets/db-password
+      MYSQL_ROOT_PASSWORD: /secrets/db-root-password
+    readinessProbe:
+      tcpSocket:
+        port: 3306
+    secrets:
+      db-password: "${DB_PASSWORD}"
+      db-root-password: "${DB_ROOT_PASSWORD}"
+    service:
+      type: ClusterIP
+      port: 3306
+    volumes:
+      - name: "scuffbot-db"
+        mountPath: "/var/lib/mysql"
+        size: "1Gi"

@@ -1,12 +1,12 @@
 from discord.ext import commands
 from discord.ui import Button, View, Select, Modal, TextInput
 from discord import app_commands, PermissionOverwrite, Object
-from lib.bot import config, DB
+from src.lib.bot import config, DB
 from typing import Any, Callable, Union
 import discord
 import logging
 
-from utils.SixMans import PARTY_SIZE, SixMansState, SixMansMatchType, SixMansParty
+from src.utils.SixMans import PARTY_SIZE, SixMansState, SixMansMatchType, SixMansParty
 
 class SixMansPrompt(View):
     def __init__(self, bot: discord.Client, party_id: int):

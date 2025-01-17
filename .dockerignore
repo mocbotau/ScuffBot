@@ -1,2 +1,11 @@
 __pycache__
+.venv
+
+config.yml
 logs/*
+assets
+
+.vscode
+.env
+config.yaml.local
+.local-secrets/*

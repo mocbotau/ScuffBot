@@ -1,10 +1,11 @@
 import logging
 import mysql.connector as mysql
 from mysql.connector import errorcode
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 import os
 
-load_dotenv()
+env_file = find_dotenv(".env.local")
+load_dotenv(env_file)
 
 class DB:
     def __init__(self) -> None:
@@ -12,7 +13,7 @@ class DB:
 
     def connect(self):
         try:
-            self.connection = mysql.connect(host=os.getenv("DB_HOST"), user=os.getenv("DB_USER"), password=os.getenv("DB_PASS"), database=os.getenv("DB_DATABASE"), autocommit=True)
+            self.connection = mysql.connect(host=os.getenv("DB_HOST"), user=os.getenv("DB_USER"), password=os.getenv("DB_PASSWORD"), database=os.getenv("DB_DATABASE"), autocommit=True)
         except mysql.Error as err:
             if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 self.logger.error("[DB] Database credentials incorrect.")
@@ -20,6 +21,7 @@ class DB:
                 self.logger.error("[DB] Database does not exist.")
             else:
                 self.logger.error(f"[DB] {err}")
+            raise err
         else:
             self.cursor = self.connection.cursor(dictionary=True)
             self.logger.info("[DB] Connection established.")

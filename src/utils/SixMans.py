@@ -3,7 +3,7 @@ import random
 from typing import Literal, Union
 
 import discord
-from lib.bot import DB
+from src.lib.bot import DB
 
 PARTY_SIZE = 6
 

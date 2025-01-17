@@ -1,7 +1,7 @@
 from discord.ext import commands
 import discord
 import logging
-from lib.bot import config
+from src.lib.bot import config
 import asyncio
 
 class NameRoles(commands.Cog):

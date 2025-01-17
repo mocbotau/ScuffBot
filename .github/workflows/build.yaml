@@ -1,0 +1,27 @@
+name: Build and push to Docker Hub
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and push to Docker Hub
+    runs-on: arc-runner-set
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.ORG_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.ORG_DOCKERHUB_TOKEN }}
+      - name: Extract repository name
+        id: extractor
+        run: echo "${{ github.repository }}" | sed -E "s|^.*/(.*)$|repo_name=\1|" | tr "[:upper:]" "[:lower:]" >> $GITHUB_OUTPUT
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: >
+            ${{ secrets.ORG_DOCKERHUB_USERNAME }}/${{ secrets.ORG_DOCKERHUB_REPO }}:${{ steps.extractor.outputs.repo_name }}

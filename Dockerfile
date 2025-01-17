@@ -5,6 +5,10 @@ WORKDIR /app
 COPY requirements.txt /app
 RUN pip install -r requirements.txt
 
-COPY . /app
+RUN mkdir logs
 
-CMD ["python3", "launcher.py", "--dev"]
+COPY src /app/src
+COPY logging.json /app
+COPY launcher.py /app
+
+CMD ["python3", "launcher.py"]

@@ -4,10 +4,12 @@ services:
     build: ./
     restart: unless-stopped
     volumes:
-      - ./lib:/app/lib:z
+      - ./:/app
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - ./.env.local
     networks:
       - backend
   # MySQL Server
