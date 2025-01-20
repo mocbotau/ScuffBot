@@ -1,12 +1,71 @@
-name: Build
+name: Deploy
 
 on:
+  workflow_run:
+    workflows:
+      - Build and push to Docker Hub
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
-
     steps:
-      - name: echo
-        run: echo "Hello, world!"
+      - name: Determine Environment
+        id: set-environment
+        run: |
+          if [[ "${{ github.event.pull_request }}" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name == 'workflow_dispatch' }}" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          else
+            echo "env=prod" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+
+      - name: Checkout infrastructure config
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.ORG_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.ORG_DOCKERHUB_TOKEN }}
+
+      - name: Set kube context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: service-account
+          k8s-url: https://kube.masterofcubesau.com:6443
+          k8s-secret: ${{ secrets.ORG_K3S_AUTH_TOKEN }}
+
+      - name: Add internal chartmuseum
+        run: |
+          helm repo add chartmuseum https://chartmuseum.masterofcubesau.com \
+          --username ${{ secrets.ORG_CHARTMUSEUM_USER }} \
+          --password ${{ secrets.ORG_CHARTMUSEUM_PASS }}
+
+      - name: Extract repository name
+        id: extractor
+        run: |
+          echo "${{ github.repository }}" | sed -E "s|^.*/(.*)$|repo_name=\1|" | tr "[:upper:]" "[:lower:]" >> $GITHUB_OUTPUT
+          echo "${{ github.sha }}" | sed -E "s|^(.{7}).*$|short_sha=\1|" >> $GITHUB_OUTPUT
+
+      - name: Deploy application to ${{ steps.set-environment.outputs.env }}
+        env:
+          ENVIRONMENT: ${{ steps.set-environment.outputs.env }}
+          REPO_NAME: ${{ steps.extractor.outputs.repo_name }}
+          COMMIT_SHA: ${{ steps.extractor.outputs.short_sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.ORG_DOCKERHUB_USERNAME }}
+          DOCKERHUB_REPO: ${{ secrets.ORG_DOCKERHUB_REPO }}
+          BOT_TOKEN: ${{ steps.set-environment.outputs.env == 'dev' && secrets.BOT_TOKEN_DEV || secrets.BOT_TOKEN_PROD }}
+        run: |
+          cat infra/values.yaml | envsubst | \
+          helm upgrade --install "$REPO_NAME" chartmuseum/discord-bot --version 0.1.0 \
+            -f - --set-file scuffbotConfig=config.yaml \
+            --namespace="$REPO_NAME-$ENVIRONMENT" --create-namespace

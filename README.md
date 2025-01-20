@@ -1,16 +1,16 @@
 # ScuffBot
 
-This bot is the custom server management bot which runs on the Scuffcord [discord server](discord.gg/scuffcordoce).
+This repo will deploy into Kubernetes through CI/CD.
 
-## Usage
-
-This repo will deploy into OCI using CI/CD.
+## Running Locally
 
 If you would like to run locally:
 
-1. Copy [config.template.yml](./config.template.yml) to `config.yml`
-2. Run the following
-
-```bash
-docker run -v --rm $(pwd)/config.yml:/app/config.yml $(docker build -q .)
-```
+1. Copy [config.yaml](./config.yaml) to `config.yaml.local`, and adjust values as necessary. Alternatively, change `CONFIG_FILE` in [.env](./.env) to point to `config.yaml`.
+2. Create a `.local-secrets` directory in the root of the project.
+3. Populate the directory with the following files:
+   | Filename | Description |
+   |--------------------|------------------------------------|
+   | `bot-token` | Token for Discord bot |
+4. Copy [/db/.env.template](./db/.env.template) to `db/.env`, and adjust values as necessary.
+5. Run the bot with `docker compose up -d --build`.

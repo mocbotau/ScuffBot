@@ -1,0 +1,9 @@
+services:
+  # SCUFFBOT
+  bot:
+    build: ./
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    env_file:
+      - ./.env.local
