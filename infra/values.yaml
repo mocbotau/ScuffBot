@@ -1,0 +1,16 @@
+# TODO: Replace schema link below to permanent location
+# yaml-language-server: $schema=../../infra-helm-charts/charts/discord-bot/values.schema.json
+environment: "${ENVIRONMENT}"
+
+version: "${COMMIT_SHA}"
+
+deployments:
+  - name: "scuffbot"
+    image: "${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO}:${REPO_NAME}-${ENVIRONMENT}"
+    config:
+      fileVariable: "scuffbotConfig"
+    environment:
+      BOT_TOKEN: /secrets/bot-token
+      CONFIG_FILE: /config/config.yaml
+    secrets:
+      bot-token: "${BOT_TOKEN}"

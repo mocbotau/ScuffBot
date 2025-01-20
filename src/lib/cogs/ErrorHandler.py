@@ -1,14 +1,6 @@
 from discord.ext import commands
-from discord.ui import Button, View
-from discord import app_commands
-from src.lib.bot import config, SCUFFBOT, DEV_GUILD
-from typing import Literal, Union, Optional
-import discord
 import logging
-
 import traceback
-
-
 
 class ErrorHandler(commands.Cog):
 
@@ -27,9 +19,6 @@ class ErrorHandler(commands.Cog):
         
         self.logger.error(f"[ERROR] Unhandled Error: {error}")
         traceback.print_exc()
-
-
-
 
 async def setup(bot):
     await bot.add_cog(ErrorHandler(bot))
