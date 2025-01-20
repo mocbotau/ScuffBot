@@ -16,12 +16,12 @@ jobs:
       - name: Determine Environment
         id: set-environment
         run: |
-          if [[ "${{ github.event.pull_request }}" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "env=dev" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name == 'workflow_dispatch' }}" ]]; then
-            echo "env=dev" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
             echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
