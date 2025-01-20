@@ -1,27 +1,25 @@
 import json
 from discord.ext import commands
 from discord import app_commands
-import logging.config
+from dotenv import find_dotenv, load_dotenv
 import logging.config
 import logging
 import discord
 import yaml
 import os
 
+env_file = find_dotenv(".env.local")
+load_dotenv(env_file)
 
-with open("./config.yml", "r") as f:
+with open(os.environ["CONFIG_FILE"], "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
-
-DEV_GUILD = discord.Object(id=config["GUILD_IDS"]["DEV"])
-MAIN_GUILD = discord.Object(id=config["GUILD_IDS"]["MAIN"])
 
 class SCUFFBOT(commands.Bot):
 
     def __init__(self, is_dev):
-        super().__init__(command_prefix="!", owner_id=169402073404669952, intents=discord.Intents.all(), application_id=(config["APPLICATION_IDS"]["DEVELOPMENT"] if is_dev else config["APPLICATION_IDS"]["PRODUCTION"]))
+        super().__init__(command_prefix="!", owner_id=288206127747825664, intents=discord.Intents.all())
         self.is_dev = is_dev
         self.mode = "DEVELOPMENT" if is_dev else "PRODUCTION"
-
 
     async def setup_hook(self):
         self.setup_logger()
@@ -39,8 +37,8 @@ class SCUFFBOT(commands.Bot):
     async def load_cog_manager(self):
         await self.load_extension("src.lib.cogs.Cogs")
 
-    def run(self):
-        super().run(config["TOKENS"][self.mode], log_handler=None)
+    def run(self, bot_token: str):
+        super().run(bot_token, log_handler=None)
 
     def create_embed(self, title, description, colour):
         embed = discord.Embed(title=None, description=description, colour=colour if colour else 0xDC3145, timestamp=discord.utils.utcnow())
@@ -79,6 +77,6 @@ class SCUFFBOT(commands.Bot):
                 case "sync":
                     if len(message_components) == 2:
                         result = await self.tree.sync(guild=discord.Object(id=int(message_components[1])))
-                    else:
-                        result = await self.tree.sync()
-                    await message.channel.send(f"Synced {[command.name for command in result]}")
+                    # else:
+                        # result = await self.tree.sync()
+                    await message.channel.send("Synced ")

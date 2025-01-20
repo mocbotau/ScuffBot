@@ -1,15 +1,12 @@
 from discord.ext import commands
-from discord.ui import Button, View
 from discord import app_commands
-from src.lib.bot import config, SCUFFBOT, DEV_GUILD
-from typing import Literal, Union, Optional
+from src.lib.bot import config
 import discord
 import logging
 
 from glob import glob
 import os
 import traceback
-
 
 class Cogs(commands.Cog):
 
@@ -75,7 +72,7 @@ class Cogs(commands.Cog):
         self.logger.info(f"[COG] Loaded {self.__class__.__name__}")
 
     CogGroup = app_commands.Group(
-        name="cog", description="Manages SCUFFBOT cogs.", guild_ids=[1165195575013163038])
+        name="cog", description="Manages SCUFFBOT cogs.", guild_ids=[1165195575013163038, 422983658257907732])
 
     @CogGroup.command(name="list", description="Lists all cog statuses.")
     @app_commands.checks.has_permissions(manage_guild=True)
