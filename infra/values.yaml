@@ -17,6 +17,8 @@ deployments:
     secrets:
       bot-token: "${BOT_TOKEN}"
       db-password: "${DB_PASSWORD}"
+
+statefulSets:
   - name: "scuffbot-db"
     image: "mysql:9.2.0"
     config:
@@ -37,6 +39,7 @@ deployments:
       db-root-password: "${DB_ROOT_PASSWORD}"
     service:
       type: ClusterIP
+      headless: true
       port: 3306
     volumes:
       - name: "scuffbot-db"

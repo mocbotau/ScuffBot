@@ -101,6 +101,6 @@ jobs:
           BOT_TOKEN: ${{ needs.build.outputs.environment == 'staging' && secrets.BOT_TOKEN_STAGING || secrets.BOT_TOKEN_PROD }}
         run: |
           cat infra/values.yaml | envsubst | \
-          helm upgrade --install "$REPO_NAME" chartmuseum/discord-bot --version 0.1.0 \
+          helm upgrade --install "$REPO_NAME" chartmuseum/discord-bot --version 0.2.0 \
             -f - --set-file scuffbotConfig=config.yaml --set-file sqlInitFile=db/data/init.sql \
             --namespace="$REPO_NAME-$ENVIRONMENT" --create-namespace
