@@ -15,7 +15,6 @@ class DB:
     def connect(self):
         with open(os.getenv("DB_PASSWORD_FILE"), "r", encoding="utf-8") as f:
             password = f.read().strip()
-        print(password, flush=True)
         try:
             self.connection = mysql.connect(host=os.getenv("DB_HOST"), user=os.getenv(
                 "DB_USER"), password=password, database=os.getenv("DB_DATABASE"), autocommit=True)
