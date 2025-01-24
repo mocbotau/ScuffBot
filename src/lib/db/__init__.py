@@ -7,13 +7,18 @@ import os
 env_file = find_dotenv(".env.local")
 load_dotenv(env_file)
 
+
 class DB:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
     def connect(self):
+        with open(os.getenv("DB_PASSWORD_FILE"), "r", encoding="utf-8") as f:
+            password = f.read().strip()
+        print(password, flush=True)
         try:
-            self.connection = mysql.connect(host=os.getenv("DB_HOST"), user=os.getenv("DB_USER"), password=os.getenv("DB_PASSWORD"), database=os.getenv("DB_DATABASE"), autocommit=True)
+            self.connection = mysql.connect(host=os.getenv("DB_HOST"), user=os.getenv(
+                "DB_USER"), password=password, database=os.getenv("DB_DATABASE"), autocommit=True)
         except mysql.Error as err:
             if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 self.logger.error("[DB] Database credentials incorrect.")
@@ -32,11 +37,11 @@ class DB:
     def field(self, command, *values):
         self.cursor.execute(command, tuple(values))
         return None if not (data := self.cursor.fetchone()) else list(data.values())[0]
-    
+
     def row(self, command, *values):
         self.cursor.execute(command, tuple(values))
         return self.cursor.fetchone()
-    
+
     def rows(self, command, *values):
         self.cursor.execute(command, tuple(values))
         return self.cursor.fetchall()
