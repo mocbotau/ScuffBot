@@ -4,7 +4,8 @@ services:
     build: ./
     restart: unless-stopped
     volumes:
-      - ./:/app
+      - ./.local-secrets:/secrets
+      - ./config.yaml.local:/config/config.yaml.local
     depends_on:
       db:
         condition: service_healthy
@@ -14,15 +15,23 @@ services:
       - backend
   # MySQL Server
   db:
-    image: "mysql/mysql-server:8.0"
+    image: "mysql:9.2.0"
     restart: unless-stopped
     env_file:
       - ./db/.env
     volumes:
       - db_data:/var/lib/mysql
       - ./db/data:/docker-entrypoint-initdb.d/
+      - .local-secrets/db-password:/secrets/db-password
+      - .local-secrets/db-root-password:/secrets/db-root-password
     networks:
       - backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 0s
   # phpmyadmin
   phpmyadmin:
     depends_on:
