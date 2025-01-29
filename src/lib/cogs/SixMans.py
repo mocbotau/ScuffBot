@@ -421,65 +421,12 @@ class ScoreUpload(Modal):
         await self.ctx.update_view()
 
 
-class QueuePrompt(View):
-
-    def __init__(self, ctx, message: discord.Message):
-        super().__init__(timeout=None)
-        self.ctx = ctx
-        self.message = message
-
-        join_button = Button(
-            label="Join Queue", style=discord.ButtonStyle.green)
-        join_button.callback = self.join_callback
-        self.add_item(join_button)
-
-        leave_button = Button(
-            label="Leave Queue", style=discord.ButtonStyle.grey)
-        leave_button.callback = self.leave_callback
-        self.add_item(leave_button)
-
-    def generate_embed(self):
-        queue_len = len(self.ctx.player_queue)
-        return self.ctx.bot.create_embed("SCUFFBOT SIX MANS", f"To join/leave the six man queue, click the respective button below.\n\nThere {'is' if queue_len == 1 else 'are'} currently **{queue_len} {'player' if queue_len == 1 else 'players'}** in the queue.", None)
-
-    async def update_view(self, embed=None):
-        if self.message:
-            await self.message.edit(embed=embed or self.generate_embed(), view=self)
-
-    async def join_callback(self, interaction: discord.Interaction):
-        if interaction.user in self.ctx.player_queue:
-            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are already in the queue.", None), ephemeral=True)
-        elif str(interaction.user.id) in DB.column("SELECT A.UserID FROM SixManUsers A INNER JOIN SixManParty B WHERE A.PartyID = B.PartyID AND B.LobbyID IS NOT NULL"):
-            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are already in a six mans lobby. Failed to join queue.", None), ephemeral=True)
-        else:
-            self.ctx.player_queue.add(interaction.user)
-            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have joined the six mans queue. ({len(self.ctx.player_queue)}/{PARTY_SIZE})", None), ephemeral=True)
-            await self.update_view()
-            if ((party := self.ctx.player_queue.get_party())):
-                await self.update_view()
-                lobby_id, party_id = await self.ctx.create_party(party)
-                await self.ctx.start(lobby_id, party_id)
-            else:
-                await asyncio.sleep(QUEUE_TIMEOUT * 60)
-                if interaction.user in self.ctx.player_queue:
-                    self.ctx.player_queue.remove(interaction.user)
-                    await interaction.user.send(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have been removed from the Six Mans queue since a game could not be found in time.", None))
-                    await self.update_view()
-
-    async def leave_callback(self, interaction: discord.Interaction):
-        if not interaction.user in self.ctx.player_queue:
-            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are not in a queue. Click the `Join Queue` button to join the queue.", None), ephemeral=True)
-        else:
-            self.ctx.player_queue.remove(interaction.user)
-            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have left the six mans queue.", None), ephemeral=True)
-            await self.update_view()
-
-
 class SixMans(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
         self.player_queue = SixMansQueue()
+        self.queue_prompt = QueuePrompt(self, None)
         self.category = config["SIX_MAN"]["CATEGORY"]
 
     async def cog_load(self):
@@ -489,12 +436,17 @@ class SixMans(commands.Cog):
     async def create_queue_prompt(self):
         await self.bot.wait_until_ready()
         category_channel = self.bot.get_channel(self.category)
-        if "join-queue" not in [channel.name for channel in category_channel.text_channels]:
+        prompt_channel = next(
+            filter(lambda c: "join-queue" in c.name, category_channel.text_channels), None)
+        if prompt_channel == None:
             channel = await category_channel.create_text_channel("join-queue", overwrites={category_channel.guild.default_role: PermissionOverwrite(send_messages=False, view_channel=True)})
             await asyncio.sleep(3)
             message = await channel.send(None, embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"To join/leave the six man queue, click the respective button below.",  None))
-            view = QueuePrompt(self, message)
-            await view.update_view()
+            self.queue_prompt = QueuePrompt(self, message)
+        else:
+            message = next(iter([message async for message in prompt_channel.history() if message.author == self.bot.user]))
+            self.queue_prompt.message = message
+        await self.queue_prompt.update_view()
 
     async def generate_lobby_id(self):
         highest_lobby_num = max(
@@ -559,7 +511,63 @@ class SixMans(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(SixMans(bot))
+    ctx = SixMans(bot)
+    bot.add_view(ctx.queue_prompt)
+    await bot.add_cog(ctx)
+
+
+class QueuePrompt(View):
+
+    def __init__(self, ctx: SixMans, message: discord.Message):
+        super().__init__(timeout=None)
+        self.ctx = ctx
+        self.message = message
+
+        join_button = Button(
+            label="Join Queue", style=discord.ButtonStyle.green, custom_id="queue_prompt_join")
+        join_button.callback = self.join_callback
+        self.add_item(join_button)
+
+        leave_button = Button(
+            label="Leave Queue", style=discord.ButtonStyle.grey, custom_id="queue_prompt_leave")
+        leave_button.callback = self.leave_callback
+        self.add_item(leave_button)
+
+    def generate_embed(self):
+        queue_len = len(self.ctx.player_queue)
+        return self.ctx.bot.create_embed("SCUFFBOT SIX MANS", f"To join/leave the six man queue, click the respective button below.\n\nThere {'is' if queue_len == 1 else 'are'} currently **{queue_len} {'player' if queue_len == 1 else 'players'}** in the queue.", None)
+
+    async def update_view(self, embed=None):
+        if self.message:
+            await self.message.edit(embed=embed or self.generate_embed(), view=self)
+
+    async def join_callback(self, interaction: discord.Interaction):
+        if interaction.user in self.ctx.player_queue:
+            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are already in the queue.", None), ephemeral=True)
+        elif str(interaction.user.id) in DB.column("SELECT A.UserID FROM SixManUsers A INNER JOIN SixManParty B WHERE A.PartyID = B.PartyID AND B.LobbyID IS NOT NULL"):
+            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are already in a six mans lobby. Failed to join queue.", None), ephemeral=True)
+        else:
+            self.ctx.player_queue.add(interaction.user)
+            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have joined the six mans queue. ({len(self.ctx.player_queue)}/{PARTY_SIZE})", None), ephemeral=True)
+            await self.update_view()
+            if ((party := self.ctx.player_queue.get_party())):
+                await self.update_view()
+                lobby_id, party_id = await self.ctx.create_party(party)
+                await self.ctx.start(lobby_id, party_id)
+            else:
+                await asyncio.sleep(QUEUE_TIMEOUT * 60)
+                if interaction.user in self.ctx.player_queue:
+                    self.ctx.player_queue.remove(interaction.user)
+                    await interaction.user.send(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have been removed from the Six Mans queue since a game could not be found in time.", None))
+                    await self.update_view()
+
+    async def leave_callback(self, interaction: discord.Interaction):
+        if not interaction.user in self.ctx.player_queue:
+            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You are not in a queue. Click the `Join Queue` button to join the queue.", None), ephemeral=True)
+        else:
+            self.ctx.player_queue.remove(interaction.user)
+            await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have left the six mans queue.", None), ephemeral=True)
+            await self.update_view()
 
 
 class UserDropdown(Select):

@@ -44,7 +44,6 @@ class SCUFFBOT(commands.Bot):
         for handler in logging.getLogger().handlers:
             if handler.name == "file" and os.path.isfile('logs/latest.log'):
                 handler.doRollover()
-        logging.getLogger('discord').setLevel(logging.DEBUG)
 
     async def load_cog_manager(self):
         await self.load_extension("src.lib.cogs.Cogs")
