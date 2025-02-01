@@ -2,6 +2,8 @@ from enum import Enum
 import random
 from typing import Literal, Union
 
+from datetime import datetime, timezone
+from discord.ext import tasks
 import discord
 from src.lib.bot import DB
 
@@ -78,20 +80,24 @@ class SixMansParty():
 
 
 class SixMansQueue():
-    def __init__(self):
+    def __init__(self, queue_prompt):
         self.queue = list()
+        self.queue_prompt = queue_prompt
+        self.bot = queue_prompt.ctx.bot
+        self.purge_queue.start()
 
     def add(self, player: discord.Member):
-        self.queue.append(player)
+        self.queue.append(
+            {"player": player, "join_time": datetime.now(timezone.utc)})
 
     def remove(self, player: discord.Member):
-        self.queue.remove(player)
+        self.queue = list(filter(lambda e: e["player"] != player, self.queue))
 
     def get_party(self):
         if len(self.queue) == PARTY_SIZE:
             party = self.queue[:PARTY_SIZE]
             del self.queue[:PARTY_SIZE]
-            return party
+            return list(map(lambda e: e["player"], party))
         return []
 
     def __contains__(self, key):
@@ -99,3 +105,15 @@ class SixMansQueue():
 
     def __len__(self):
         return len(self.queue)
+
+    @tasks.loop(minutes=1)
+    async def purge_queue(self):
+        for entry in self.queue:
+            if (datetime.now(timezone.utc) - entry["join_time"]).seconds >= (QUEUE_TIMEOUT * 60):
+                self.remove(entry["player"])
+                await entry["player"].send(embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"You have been removed from the Six Mans queue since a game could not be found in time.", None))
+                await self.queue_prompt.update_view()
+
+    @purge_queue.before_loop
+    async def before_purge_queue(self):
+        await self.bot.wait_until_ready()

@@ -1,13 +1,13 @@
 import asyncio
 from discord.ext import commands
 from discord.ui import Button, View, Select, Modal, TextInput
-from discord import app_commands, PermissionOverwrite, Object
+from discord import PermissionOverwrite
 from src.lib.bot import config, DB
 from typing import Any, Callable, Union
 import discord
 import logging
 
-from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, QUEUE_TIMEOUT, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
+from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
 
 
 class SixMansPrompt(View):
@@ -425,8 +425,8 @@ class SixMans(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
-        self.player_queue = SixMansQueue()
         self.queue_prompt = QueuePrompt(self, None)
+        self.player_queue = SixMansQueue(self.queue_prompt)
         self.category = config["SIX_MAN"]["CATEGORY"]
 
     async def cog_load(self):
@@ -522,12 +522,10 @@ class QueuePrompt(View):
         super().__init__(timeout=None)
         self.ctx = ctx
         self.message = message
-
         join_button = Button(
             label="Join Queue", style=discord.ButtonStyle.green, custom_id="queue_prompt_join")
         join_button.callback = self.join_callback
         self.add_item(join_button)
-
         leave_button = Button(
             label="Leave Queue", style=discord.ButtonStyle.grey, custom_id="queue_prompt_leave")
         leave_button.callback = self.leave_callback
@@ -554,12 +552,6 @@ class QueuePrompt(View):
                 await self.update_view()
                 lobby_id, party_id = await self.ctx.create_party(party)
                 await self.ctx.start(lobby_id, party_id)
-            else:
-                await asyncio.sleep(QUEUE_TIMEOUT * 60)
-                if interaction.user in self.ctx.player_queue:
-                    self.ctx.player_queue.remove(interaction.user)
-                    await interaction.user.send(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have been removed from the Six Mans queue since a game could not be found in time.", None))
-                    await self.update_view()
 
     async def leave_callback(self, interaction: discord.Interaction):
         if not interaction.user in self.ctx.player_queue:
