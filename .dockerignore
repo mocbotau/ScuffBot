@@ -5,6 +5,20 @@ logs/*
 assets
 
 .vscode
-.env
-config.yaml.local
+.env*
+config.yaml*
 .local-secrets/*
+
+db/
+infra/
+
+.github
+.git
+.gitignore
+
+.dockerignore
+Dockerfile
+docker-compose.yaml
+
+.python-version
+*.md

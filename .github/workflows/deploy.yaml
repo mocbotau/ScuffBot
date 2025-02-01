@@ -98,9 +98,9 @@ jobs:
           DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.ORG_DOCKERHUB_USERNAME }}
           DOCKERHUB_REPO: ${{ secrets.ORG_DOCKERHUB_REPO }}
-          BOT_TOKEN: ${{ needs.build.outputs.environment == 'staging' && secrets.BOT_TOKEN_STAGING || secrets.BOT_TOKEN_PROD }}
+          BOT_TOKEN: ${{ needs.build.outputs.environment == 'prod' && secrets.BOT_TOKEN_PROD || secrets.BOT_TOKEN_STAGING }}
         run: |
           cat infra/values.yaml | envsubst | \
-          helm upgrade --install "$REPO_NAME" chartmuseum/discord-bot --version 0.2.0 \
+          helm upgrade --install "$REPO_NAME" chartmuseum/generic-app --version 0.1.1 \
             -f - --set-file scuffbotConfig=config.yaml --set-file sqlInitFile=db/data/init.sql \
-            --namespace="$REPO_NAME-$ENVIRONMENT" --create-namespace
+            --namespace="$REPO_NAME-$ENVIRONMENT" --create-namespace --atomic --timeout=1m --cleanup-on-fail
