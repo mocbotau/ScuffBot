@@ -4,6 +4,7 @@ services:
     build: ./
     restart: unless-stopped
     volumes:
-      - ./:/app
+      - ./config.yaml:/app/config.yaml.local
+      - .local-secrets:/app/.local-secrets
     env_file:
       - ./.env.local
