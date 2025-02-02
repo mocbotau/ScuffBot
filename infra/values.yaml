@@ -10,10 +10,10 @@ deployments:
     environment:
       BOT_TOKEN: "/secrets/bot-token"
       CONFIG_FILE: "/config/config.yaml"
-      DB_DATABASE: SCUFFBOT
-      DB_HOST: scuffbot-db
-      DB_PASSWORD_FILE: /secrets/db-password
-      DB_USER: SCUFFBOT
+      DB_DATABASE: "SCUFFBOT"
+      DB_HOST: "service-scuffbot-db"
+      DB_PASSWORD_FILE: "/secrets/db-password"
+      DB_USER: "SCUFFBOT"
     secrets:
       bot-token: "${BOT_TOKEN}"
       db-password: "${DB_PASSWORD}"
@@ -21,16 +21,16 @@ deployments:
 statefulSets:
   - name: "scuffbot-db"
     image: "mysql:9.2.0"
+    updateStrategy: "OnDelete"
     config:
       fileName: "init.sql"
-      fileVariable: sqlInitFile
-      mountPath: /docker-entrypoint-initdb.d/
-    containerPort: 3306
+      fileVariable: "sqlInitFile"
+      mountPath: "/docker-entrypoint-initdb.d/"
     environment:
-      MYSQL_DATABASE: SCUFFBOT
-      MYSQL_USER: SCUFFBOT
-      MYSQL_PASSWORD_FILE: /secrets/db-password
-      MYSQL_ROOT_PASSWORD_FILE: /secrets/db-root-password
+      MYSQL_DATABASE: "SCUFFBOT"
+      MYSQL_USER: "SCUFFBOT"
+      MYSQL_PASSWORD_FILE: "/secrets/db-password"
+      MYSQL_ROOT_PASSWORD_FILE: "/secrets/db-root-password"
     readinessProbe:
       tcpSocket:
         port: 3306
@@ -38,8 +38,7 @@ statefulSets:
       db-password: "${DB_PASSWORD}"
       db-root-password: "${DB_ROOT_PASSWORD}"
     service:
-      type: ClusterIP
-      headless: true
+      type: "ClusterIP"
       port: 3306
     volumes:
       - name: "scuffbot-db"
