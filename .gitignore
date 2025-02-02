@@ -5,6 +5,9 @@ logs/*
 assets
 
 .vscode
-.env
+
+.env*
+!.env.local
+
 config.yaml.local
 .local-secrets/*
