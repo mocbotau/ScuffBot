@@ -101,7 +101,7 @@ class SixMansQueue():
         return []
 
     def __contains__(self, key):
-        return key in self.queue
+        return key in list(map(lambda e: e["player"], self.queue))
 
     def __len__(self):
         return len(self.queue)
