@@ -6,17 +6,13 @@ import logging.config
 import logging
 import discord
 import yaml
-import sys
 import os
-from ..db import DB as SCUFF_DB
 
 env_file = find_dotenv(".env.local")
 load_dotenv(env_file)
 
 with open(os.environ["CONFIG_FILE"], "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
-
-DB = SCUFF_DB()
 
 
 class SCUFFBOT(commands.Bot):
@@ -29,12 +25,6 @@ class SCUFFBOT(commands.Bot):
 
     async def setup_hook(self):
         self.setup_logger()
-        self.DB = DB
-        try:
-            self.DB.connect()
-        except Exception as e:
-            self.logger.error(f"Failed to connect to the database: {e}")
-            sys.exit(1)
         await self.load_cog_manager()
 
     def setup_logger(self):

@@ -2,7 +2,8 @@ import asyncio
 from discord.ext import commands
 from discord.ui import Button, View, Select, Modal, TextInput
 from discord import PermissionOverwrite
-from src.lib.bot import config, DB
+from src.lib.db import DB
+from src.lib.bot import config
 from typing import Any, Callable, Union
 import discord
 import logging
@@ -31,7 +32,7 @@ class SixMansPrompt(View):
             return
 
         # User joins channel
-        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and len(after.channel.members) == PARTY_SIZE - 1:
+        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and len(after.channel.members) == PARTY_SIZE:
             self.state = SixMansState.CHOOSE_CAPTAIN_ONE
             await self.update_view()
 
@@ -343,7 +344,7 @@ class SixMansPrompt(View):
         await self.create_break_out_rooms()
         self.game = SixMansMatchType.ONE_V_ONE
         DB.execute("INSERT INTO SixManGames () VALUES ()")
-        self.party.game_id = DB.field("SELECT LAST_INSERT_ID()")
+        self.party.game_id = DB.field("SELECT MAX(GameID) FROM SixManGames")
         DB.execute("UPDATE SixManParty SET GameID = %s WHERE PartyID = %s",
                    self.party.game_id, self.party.party_id)
         await self.update_view()
@@ -499,7 +500,7 @@ class SixMans(commands.Cog):
         DB.execute("INSERT INTO SixManLobby (LobbyID, MessageID, VoiceChannelID, TextChannelID, RoleID) VALUES (%s, %s, %s, %s, %s)",
                    lobby_id, message.id, voice_channel.id, text_channel.id, lobby_role.id)
         DB.execute("INSERT INTO SixManParty (LobbyID) VALUES (%s)", lobby_id)
-        party_id = DB.field("SELECT LAST_INSERT_ID()")
+        party_id = DB.field("SELECT MAX(PartyID) FROM SixManParty")
 
         # Invite members
         for member in members:

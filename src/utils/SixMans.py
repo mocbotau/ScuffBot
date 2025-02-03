@@ -5,7 +5,7 @@ from typing import Literal, Union
 from datetime import datetime, timezone
 from discord.ext import tasks
 import discord
-from src.lib.bot import DB
+from src.lib.db import DB
 
 PARTY_SIZE = 6
 QUEUE_TIMEOUT = 60  # minutes
