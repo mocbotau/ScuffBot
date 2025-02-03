@@ -18,7 +18,7 @@ with open(os.environ["CONFIG_FILE"], "r", encoding="utf-8") as f:
 class SCUFFBOT(commands.Bot):
 
     def __init__(self, is_dev):
-        super().__init__(command_prefix="!",
+        super().__init__(command_prefix="/",
                          owner_id=169402073404669952, intents=discord.Intents.all())
         self.is_dev = is_dev
         self.mode = "DEVELOPMENT" if is_dev else "PRODUCTION"

@@ -18,7 +18,7 @@ class SixMansState(Enum):
     CHOOSE_CAPTAIN_TWO = 2
     CHOOSE_1S_PLAYER = 3
     PLAYING = 4
-    SCORE_UPLOAD = 5
+    SCORE_VALIDATION = 5
     POST_MATCH = 6
 
 
@@ -48,6 +48,9 @@ class SixMansParty():
         return DB.row("SELECT * FROM SixManLobby WHERE LobbyID = %s", self.lobby_id)
 
     def get_players(self, team: Literal[None, 1, 2] = None):
+        if team == None:
+            return [self.bot.get_user(int(user_id)) for user_id in DB.column("SELECT UserID FROM SixManUsers WHERE PartyID = %s", self.party_id)]
+
         return [self.bot.get_user(int(user_id)) for user_id in DB.column("SELECT UserID FROM SixManUsers WHERE PartyID = %s AND Team = %s", self.party_id, 0 if team == None else team)]
 
     def generate_captains(self):

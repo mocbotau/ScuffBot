@@ -36,6 +36,8 @@ If you would like to run locally:
 - [ ] Convert score reporting to win/loss reporting
 - [x] Add administrative commands to manipulate six man lobbies
   - Added `close` command
+- [ ] Have bot automatically infer scores
+- [ ] Change score report system to a team win report
 
 # Bugs
 
