@@ -7,7 +7,7 @@ from typing import Any, Callable, Union
 import discord
 import logging
 
-from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, QUEUE_TIMEOUT, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
+from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
 
 
 class SixMansPrompt(View):
@@ -15,6 +15,7 @@ class SixMansPrompt(View):
         super().__init__(timeout=None)
         self.bot = bot
         self.message: Union[None | discord.Message] = None
+        self.broken_out = False
 
         self.state = SixMansState.PRE_LOBBY
         self.game = SixMansMatchType.PRE_MATCH
@@ -30,7 +31,7 @@ class SixMansPrompt(View):
             return
 
         # User joins channel
-        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and len(after.channel.members) == PARTY_SIZE:
+        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and len(after.channel.members) == PARTY_SIZE - 1:
             self.state = SixMansState.CHOOSE_CAPTAIN_ONE
             await self.update_view()
 
@@ -46,7 +47,18 @@ class SixMansPrompt(View):
                 if interaction.user and interaction.user.id != self.party.captain_two.id:
                     await interaction.response.send_message(f"Only {self.party.captain_two.mention} can do this.", ephemeral=True)
                 return interaction.user and interaction.user.id == self.party.captain_two.id
-            case SixMansState.CHOOSE_1S_PLAYER | SixMansState.PLAYING | SixMansState.SCORE_UPLOAD | SixMansState.POST_MATCH:
+            case SixMansState.CHOOSE_1S_PLAYER:
+                team = DB.field(
+                    "SELECT Team FROM SixManUsers WHERE PartyID = %s AND UserID = %s", self.party.party_id, interaction.user.id)
+                ones_player = DB.field(
+                    "SELECT UserID FROM SixManUsers WHERE PartyID = %s AND Team = %s AND isOnesPlayer IS NOT NULL", self.party.party_id, team)
+                if interaction.user and interaction.user.id not in [self.party.captain_one.id, self.party.captain_two.id]:
+                    await interaction.response.send_message(f"Only {self.party.captain_one.mention} or {self.party.captain_two.mention} can do this.", ephemeral=True)
+                elif ones_player != None:
+                    await interaction.response.send_message("You have already nominated a 1s player for your team.", ephemeral=True)
+                    return False
+                return interaction.user and interaction.user.id in [self.party.captain_one.id, self.party.captain_two.id]
+            case SixMansState.PLAYING | SixMansState.SCORE_UPLOAD | SixMansState.POST_MATCH:
                 if interaction.user and interaction.user.id not in [self.party.captain_one.id, self.party.captain_two.id]:
                     await interaction.response.send_message(f"Only {self.party.captain_one.mention} or {self.party.captain_two.mention} can do this.", ephemeral=True)
                 return interaction.user and interaction.user.id in [self.party.captain_one.id, self.party.captain_two.id]
@@ -79,6 +91,7 @@ class SixMansPrompt(View):
         return match_type
 
     async def create_break_out_rooms(self):
+        self.broken_out = True
         lobby_a = f"SixMans #{self.party.lobby_id} - Team {self.party.captain_one.display_name}"
         lobby_b = f"SixMans #{self.party.lobby_id} - Team {self.party.captain_two.display_name}"
 
@@ -325,6 +338,8 @@ class SixMansPrompt(View):
 
     async def break_out_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        if self.broken_out:
+            return
         await self.create_break_out_rooms()
         self.game = SixMansMatchType.ONE_V_ONE
         DB.execute("INSERT INTO SixManGames () VALUES ()")
@@ -549,8 +564,8 @@ class QueuePrompt(View):
             await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have joined the six mans queue. ({len(self.ctx.player_queue)}/{PARTY_SIZE})", None), ephemeral=True)
             await self.update_view()
             if ((party := self.ctx.player_queue.get_party())):
-                await self.update_view()
                 lobby_id, party_id = await self.ctx.create_party(party)
+                await self.update_view()
                 await self.ctx.start(lobby_id, party_id)
 
     async def leave_callback(self, interaction: discord.Interaction):

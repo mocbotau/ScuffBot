@@ -29,9 +29,10 @@ If you would like to run locally:
 - [x] Disable general text chat messaging
 - [x] Change Team A/B to actual team names
 - [ ] Add rematch button
-- [ ] Disable break out button after clicked
+- [x] Disable break out button after clicked
 
 # Bugs
 
 - [x] Users get kicked from queue even after finding a match
-- [] Users get booted to opposite team if selected then deselected
+- [COULD NOT REPLICATE] Users get booted to opposite team if selected then deselected
+- [x] Users are able to click select ones players multiple times
