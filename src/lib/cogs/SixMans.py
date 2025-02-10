@@ -494,20 +494,19 @@ class SixMans(commands.Cog):
 
         # Send preliminary starting message
         message = await text_channel.send(embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"SCUFFBOT is creating the six mans lobby. This message will update once complete.", None))
-
-        lobby_invite_link = str(await voice_channel.create_invite(reason=f"{lobby_name} created"))
-
         DB.execute("INSERT INTO SixManLobby (LobbyID, MessageID, VoiceChannelID, TextChannelID, RoleID) VALUES (%s, %s, %s, %s, %s)",
                    lobby_id, message.id, voice_channel.id, text_channel.id, lobby_role.id)
         DB.execute("INSERT INTO SixManParty (LobbyID) VALUES (%s)", lobby_id)
         party_id = DB.field("SELECT MAX(PartyID) FROM SixManParty")
 
         # Invite members
+        lobby_invite_link = str(await voice_channel.create_invite(reason=f"{lobby_name} created"))
         for member in members:
             await member.add_roles(lobby_role, reason=f"{member} added to {lobby_name}")
             await member.send(embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"You have been added into **{lobby_name}**. Failing to join within {LOBBY_TIMEOUT} minutes will drop the match.", None), view=View().add_item(discord.ui.Button(label="Join Six Mans", style=discord.ButtonStyle.link, url=lobby_invite_link)))
             DB.execute(
                 "INSERT INTO SixManUsers (PartyID, UserID) VALUES (%s, %s)", party_id, member.id)
+        await text_channel.send(content=lobby_role.mention, delete_after=5)
         return (lobby_id, party_id)
 
     async def start(self, lobby_id: int, party_id: int):
