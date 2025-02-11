@@ -30,9 +30,15 @@ If you would like to run locally:
 - [x] Change Team A/B to actual team names
 - [ ] Add rematch button
 - [x] Disable break out button after clicked
+- [x] Ping the six mans lobby channel when the lobby is created
+- [ ] Connect up the MMR system
+- [ ] Send players back to the general six mans voice channel after the game has been ended
+- [ ] Convert score reporting to win/loss reporting
+- [x] Add administrative commands to manipulate six man lobbies
+  - Added `close` command
 
 # Bugs
 
 - [x] Users get kicked from queue even after finding a match
-- [COULD NOT REPLICATE] Users get booted to opposite team if selected then deselected
-- [x] Users are able to click select ones players multiple times
+- [ ] When captains select players after being deselected on the "choose players" prompt, the selected players get booted to the opposite team [COULD NOT REPLICATE]
+- [x] Captains are able to click select 1s players multiple times resulting in multiple 1s players in the party per team

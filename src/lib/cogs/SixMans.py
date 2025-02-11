@@ -1,7 +1,7 @@
 import asyncio
 from discord.ext import commands
 from discord.ui import Button, View, Select, Modal, TextInput
-from discord import PermissionOverwrite
+from discord import PermissionOverwrite, app_commands
 from src.lib.db import DB
 from src.lib.bot import config
 from typing import Any, Callable, Union
@@ -12,16 +12,17 @@ from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, SixMansQueue, SixMansSt
 
 
 class SixMansPrompt(View):
-    def __init__(self, bot: discord.Client, party_id: int):
+    def __init__(self, ctx, party_id: int):
         super().__init__(timeout=None)
-        self.bot = bot
+        self.ctx = ctx
+        self.bot = ctx.bot
         self.message: Union[None | discord.Message] = None
         self.broken_out = False
 
         self.state = SixMansState.PRE_LOBBY
         self.game = SixMansMatchType.PRE_MATCH
 
-        self.party = SixMansParty(bot, party_id)
+        self.party = SixMansParty(self.bot, party_id)
         self.bot.event(self.on_voice_state_update)
 
     @commands.Cog.listener()
@@ -80,6 +81,7 @@ class SixMansPrompt(View):
             await (self.bot.get_channel(int(lobby_details["VoiceChannelB"]))).delete(reason=f"{lobby_name} finished/cancelled")
         DB.execute("DELETE FROM SixManLobby WHERE LobbyID = %s",
                    self.party.lobby_id)
+        del self.ctx.lobbies[str(self.party.lobby_id)]
 
     def get_match_type(self):
         match self.game:
@@ -437,6 +439,29 @@ class ScoreUpload(Modal):
         await self.ctx.update_view()
 
 
+class SixMansCommands(app_commands.Group):
+    def __init__(self, ctx):
+        super().__init__(name="sixmans", description="Manage six man lobbies")
+        self.ctx = ctx
+
+    @app_commands.command(name="close", description="Closes an existing six mans lobby.")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.describe(
+        lobby_id="The six mans lobby number to close."
+    )
+    async def close(self, interaction: discord.Interaction, lobby_id: str):
+        await interaction.response.defer(ephemeral=True)
+        if lobby_id in self.ctx.lobbies:
+            await self.ctx.lobbies[lobby_id].delete_lobby()
+            await interaction.followup.send(embed=self.ctx.bot.create_embed("SCUFFBOT SIX MANS", f"Successfully closed SixMans #{lobby_id}", None), ephemeral=True)
+        else:
+            await interaction.followup.send(embed=self.ctx.bot.create_embed("SCUFFBOT SIX MANS", f"SixMans #{lobby_id} does not exist", None), ephemeral=True)
+
+    @close.autocomplete("lobby_id")
+    async def autocomplete_callback(self, _: discord.Interaction, current: str):
+        return [app_commands.Choice(name=lobby_id, value=lobby_id) for lobby_id in self.ctx.lobbies]
+
+
 class SixMans(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
@@ -444,6 +469,8 @@ class SixMans(commands.Cog):
         self.queue_prompt = QueuePrompt(self, None)
         self.player_queue = SixMansQueue(self.queue_prompt)
         self.category = config["SIX_MAN"]["CATEGORY"]
+
+        self.lobbies = dict()
 
     async def cog_load(self):
         asyncio.create_task(self.create_queue_prompt())
@@ -515,8 +542,9 @@ class SixMans(commands.Cog):
         voice_channel = self.bot.get_channel(int(DB.field(
             "SELECT VoiceChannelID FROM SixManLobby WHERE LobbyID = %s", lobby_id)))
         message = await text_channel.fetch_message(int(DB.field("SELECT MessageID FROM SixManLobby WHERE LobbyID = %s", lobby_id)))
-        view = SixMansPrompt(self.bot, party_id)
+        view = SixMansPrompt(self, party_id)
         view.message = message
+        self.lobbies[str(lobby_id)] = view
         await view.update_view()
 
         # Delete lobby if not all people have joined
@@ -528,6 +556,7 @@ class SixMans(commands.Cog):
 async def setup(bot):
     ctx = SixMans(bot)
     bot.add_view(ctx.queue_prompt)
+    bot.tree.add_command(SixMansCommands(ctx))
     await bot.add_cog(ctx)
 
 
