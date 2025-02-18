@@ -33,7 +33,7 @@ class SixMansPrompt(View):
             return
 
         # User joins channel
-        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and len(after.channel.members) == PARTY_SIZE:
+        if str(after.channel.id) == (await self.party.get_details())["VoiceChannelID"] and self.state == SixMansState.PRE_LOBBY and len(after.channel.members) == PARTY_SIZE:
             self.state = SixMansState.CHOOSE_CAPTAIN_ONE
             await self.update_view()
 
@@ -190,7 +190,7 @@ class SixMansPrompt(View):
             f"• **[{self.generate_flag_str(member)}]** {member.display_name}" if member else f"• {member}" for member in team_two_players]
         match self.state:
             case SixMansState.PRE_LOBBY:
-                description = f"Hello! Welcome to {self.bot.user.mention} Six Mans!\n\nSix Mans will start once all players have joined the voice channel. Otherwise, if all players have not connected within {LOBBY_TIMEOUT} minutes, the lobby will automatically be deleted.\n\n"
+                description = f"Hello! Welcome to {self.bot.user.mention} Six Mans!\n\nSix Mans will start once all players have joined the voice channel. If this message does not update after all six players have already connected, try reconnecting to the call.\n\nOtherwise, if all players have not connected within {LOBBY_TIMEOUT} minutes, the lobby will automatically be deleted."
                 embed: discord.Embed = self.bot.create_embed(
                     f"ScuffBot Six Mans #{self.party.lobby_id}", description, None)
                 embed.set_footer(
@@ -520,7 +520,7 @@ class SixMans(commands.Cog):
         text_channel = await guild.create_text_channel(name=f"six-mans-{lobby_id}", overwrites=text_perms, category=self.bot.get_channel(self.category), reason=f"{lobby_name} created")
 
         # Send preliminary starting message
-        message = await text_channel.send(embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"SCUFFBOT is creating the six mans lobby. This message will update once complete.", None))
+        message = await text_channel.send(embed=self.bot.create_embed("SCUFFBOT SIX MANS", f"SCUFFBOT is creating the six mans lobby. Please do not join the call until the six mans lobby is ready. This message will update once complete.", None))
         DB.execute("INSERT INTO SixManLobby (LobbyID, MessageID, VoiceChannelID, TextChannelID, RoleID) VALUES (%s, %s, %s, %s, %s)",
                    lobby_id, message.id, voice_channel.id, text_channel.id, lobby_role.id)
         DB.execute("INSERT INTO SixManParty (LobbyID) VALUES (%s)", lobby_id)
