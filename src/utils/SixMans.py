@@ -94,7 +94,7 @@ class SixMansQueue():
         self.queue = list(filter(lambda e: e["player"] != player, self.queue))
 
     def get_party(self):
-        if len(self.queue) == PARTY_SIZE:
+        if len(self.queue) >= PARTY_SIZE:
             party = self.queue[:PARTY_SIZE]
             del self.queue[:PARTY_SIZE]
             return list(map(lambda e: e["player"], party))
