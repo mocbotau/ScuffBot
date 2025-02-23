@@ -11,8 +11,11 @@ import logging
 
 from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
 
-ROCKET_LEAGUE_APP_ID = 356877880938070016
 
+BAKKES_APP_ID = 356877880938070016
+DISCORD_RPC_APP_ID = 562098317547405322
+ROCKET_LEAGUE_APP_IDS = [BAKKES_APP_ID]
+TIME_DIFFERENT_THRESHOLD = 10
 
 class SixMansPrompt(View):
     def __init__(self, ctx, party_id: int):
@@ -27,14 +30,14 @@ class SixMansPrompt(View):
 
         self.party = SixMansParty(self.bot, party_id)
         self.scores = {"1v1": (None, None), "2v2": (
-            None, None), "3v3": (None, None)}
+            None, None), "3v3_A": (None, None), "3v3_B": (None, None), "3v3_C": (None, None)}
         self.last_remaining = None
 
         self.bot.add_listener(self.on_voice_state_update)
         self.bot.add_listener(self.on_presence_update)
 
     async def on_presence_update(self, _, member: discord.Member):
-        if self.state == SixMansState.PLAYING and member.id in list(map(lambda p: p.id, self.party.get_players())) and ROCKET_LEAGUE_APP_ID in (list(map(lambda a: a.application_id, list(filter(lambda a: isinstance(a, discord.Activity), member.activities))))):
+        if self.state == SixMansState.PLAYING and member.id in list(map(lambda p: p.id, self.party.get_players())) and set(map(lambda a: a.application_id, list(filter(lambda a: isinstance(a, discord.Activity), member.activities)))).intersection(set(ROCKET_LEAGUE_APP_IDS)):
             print(f"Playing {self.get_match_type()}", flush=True)
             all_players = DB.rows(
                 "SELECT UserID, Type, Team, isOnesPlayer FROM SixManUsers WHERE PartyID = %s", self.party.party_id)
@@ -46,21 +49,35 @@ class SixMansPrompt(View):
                 case SixMansMatchType.TWO_V_TWO:
                     players = [(int(row["UserID"]), int(row["Team"]))
                                for row in all_players if row["isOnesPlayer"] == 0]
-                case SixMansMatchType.THREE_V_THREE:
+                case SixMansMatchType.THREE_V_THREE_A | SixMansMatchType.THREE_V_THREE_B | SixMansMatchType.THREE_V_THREE_C:
                     players = [(int(row["UserID"]), int(row["Team"]))
                                for row in all_players]
 
             activity = next(filter(lambda a: isinstance(a, discord.Activity)
-                                   and a.application_id == ROCKET_LEAGUE_APP_ID, member.activities), None)
-            if "Overtime" in activity.state:
-                match = re.search(
-                    r"^Private (?P<own_score>[0-9]+):(?P<opposition_score>[0-9]+) \[Overtime (?P<minutes_elapsed>[0-9]+):(?P<seconds_elapsed>[0-9]+)\]$", activity.state)
-                remaining_seconds = 0
+                                   and a.application_id in ROCKET_LEAGUE_APP_IDS, member.activities), None)
+            if activity.application_id == BAKKES_APP_ID:
+                if "Overtime" in activity.state:
+                    match = re.search(
+                        r"^Private (?P<own_score>[0-9]+):(?P<opposition_score>[0-9]+) \[Overtime (?P<minutes_elapsed>[0-9]+):(?P<seconds_elapsed>[0-9]+)\]$", activity.state)
+                    remaining_seconds = 0
+                else:
+                    match = re.search(
+                        r"^Private (?P<own_score>[0-9]+):(?P<opposition_score>[0-9]+) \[(?P<minutes_left>[0-9]+):(?P<seconds_left>[0-9]+) remaining\]$", activity.state)
+                    remaining_seconds = (int(match.group("minutes_left"))
+                                         * 60) + int(match.group("seconds_left"))
             else:
-                match = re.search(
-                    r"^Private (?P<own_score>[0-9]+):(?P<opposition_score>[0-9]+) \[(?P<minutes_left>[0-9]+):(?P<seconds_left>[0-9]+) remaining\]$", activity.state)
-                remaining_seconds = (int(match.group("minutes_left"))
-                                     * 60) + int(match.group("seconds_left"))
+                if match := re.search(
+                        r"^(?:Won|Lost) \((?P<own_score>[0-9]+) - (?P<opposition_score>[0-9]+)\)$", activity.state):
+                    remaining_seconds = -1
+                elif "(OT)" in activity.state:
+                    match = re.search(
+                        r"^(?:Winning|Tied|Losing) (?P<own_score>[0-9]+) - (?P<opposition_score>[0-9]+) \(OT\)$", activity.state)
+                    remaining_seconds = 0
+                else:
+                    match = re.search(
+                        r"^(?:Winning|Tied|Losing) (?P<own_score>[0-9]+) - (?P<opposition_score>[0-9]+)$", activity.state)
+                    remaining_seconds = self.last_remaining
+
 
             if member.id in list(map(lambda p: p[0], players)):
                 match_type = self.get_match_type()
@@ -70,22 +87,26 @@ class SixMansPrompt(View):
                 match_score[team_index] = int(match.group("own_score"))
                 match_score[1 -
                             team_index] = int(match.group("opposition_score"))
-                print(
-                    f"Inferred score {tuple(match_score)} from {member}", flush=True)
-                if any(match_score):
+                if any(match_score) and self.scores[match_type] != tuple(match_score):
+                    print(
+                        f"Inferred score {tuple(match_score)} from {member}", flush=True)
                     self.scores[match_type] = tuple(match_score)
-            print(
-                f"Updating remaining time of {remaining_seconds} from {member}", flush=True)
-            # TODO: Game does not advance upon finishing 3v3
-            if (self.last_remaining == 0 and tuple(match_score) != self.scores[self.get_match_type()]) or (self.last_remaining != None and remaining_seconds > self.last_remaining):
+                    await self.update_view()
+            if remaining_seconds == -1 or (self.last_remaining != None and remaining_seconds - self.last_remaining > TIME_DIFFERENT_THRESHOLD):
                 match self.game:
                     case SixMansMatchType.ONE_V_ONE:
                         self.game = SixMansMatchType.TWO_V_TWO
                         self.state = SixMansState.PLAYING
                     case SixMansMatchType.TWO_V_TWO:
-                        self.game = SixMansMatchType.THREE_V_THREE
+                        self.game = SixMansMatchType.THREE_V_THREE_A
                         self.state = SixMansState.PLAYING
-                    case SixMansMatchType.THREE_V_THREE:
+                    case SixMansMatchType.THREE_V_THREE_A:
+                        self.game = SixMansMatchType.THREE_V_THREE_B
+                        self.state = SixMansState.PLAYING
+                    case SixMansMatchType.THREE_V_THREE_B:
+                        self.game = SixMansMatchType.THREE_V_THREE_C
+                        self.state = SixMansState.PLAYING
+                    case SixMansMatchType.THREE_V_THREE_C:
                         self.state = SixMansState.SCORE_VALIDATION
                 self.last_remaining = None
                 return await self.update_view()
@@ -154,8 +175,12 @@ class SixMansPrompt(View):
                 match_type = "1v1"
             case SixMansMatchType.TWO_V_TWO:
                 match_type = "2v2"
-            case SixMansMatchType.THREE_V_THREE:
-                match_type = "3v3"
+            case SixMansMatchType.THREE_V_THREE_A:
+                match_type = "3v3_A"
+            case SixMansMatchType.THREE_V_THREE_B:
+                match_type = "3v3_B"
+            case SixMansMatchType.THREE_V_THREE_C:
+                match_type = "3v3_C"
         return match_type
 
     async def create_break_out_rooms(self):
@@ -168,9 +193,9 @@ class SixMansPrompt(View):
 
         guild: discord.Guild = self.message.guild
         voice_channel_a_perms = dict(list(map(lambda user: (user, PermissionOverwrite(speak=True, connect=True, view_channel=True)), team_one_players))) | {
-            guild.default_role: PermissionOverwrite(view_channel=True, connect=False)}
+            guild.default_role: PermissionOverwrite(view_channel=False, connect=False)}
         voice_channel_b_perms = dict(list(map(lambda user: (user, PermissionOverwrite(speak=True, connect=True, view_channel=True)), team_two_players))) | {
-            guild.default_role: PermissionOverwrite(view_channel=True, connect=False)}
+            guild.default_role: PermissionOverwrite(view_channel=False, connect=False)}
 
         voice_channel_a = await guild.create_voice_channel(name=lobby_a, overwrites=voice_channel_a_perms, category=self.message.channel.category, reason=f"{lobby_a} created")
         voice_channel_b = await guild.create_voice_channel(name=lobby_b, overwrites=voice_channel_b_perms, category=self.message.channel.category, reason=f"{lobby_b} created")
@@ -207,10 +232,10 @@ class SixMansPrompt(View):
         max_len = max(len(name_1), len(name_2))
 
         return f"""```
-| {' '* (max_len)} | 1v1 | 2v2 | 3v3 |
-| {'-'* (max_len)} | {'-'* (3)} | {'-'* (3)} | {'-'* (3)} |
-| {name_1:<{max_len}} | {'-' if self.scores['1v1'][0] == None else self.scores['1v1'][0]:^3} | {'-' if self.scores['2v2'][0] == None else self.scores['2v2'][0]:^3} | {'-' if self.scores['3v3'][0] == None else self.scores['3v3'][0]:^3} |
-| {name_2:<{max_len}} | {'-' if self.scores['1v1'][1] == None else self.scores['1v1'][1]:^3} | {'-' if self.scores['2v2'][1] == None else self.scores['2v2'][1]:^3} | {'-' if self.scores['3v3'][1] == None else self.scores['3v3'][1]:^3} |```"""
+{' '* (max_len)} |1v1|2v2|3v3 #1|3v3 #2|3v3 #3|
+{'-'* (max_len)} |{'-'* (3)}|{'-'* (3)}|{'-'* (6)}|{'-'* (6)}|{'-'* (6)}|
+{name_1:<{max_len}} |{'-' if self.scores['1v1'][0] == None else self.scores['1v1'][0]:^3}|{'-' if self.scores['2v2'][0] == None else self.scores['2v2'][0]:^3}|{'-' if self.scores['3v3_A'][0] == None else self.scores['3v3_A'][0]:^6}|{'-' if self.scores['3v3_B'][0] == None else self.scores['3v3_B'][0]:^6}|{'-' if self.scores['3v3_C'][0] == None else self.scores['3v3_C'][0]:^6}|
+{name_2:<{max_len}} |{'-' if self.scores['1v1'][1] == None else self.scores['1v1'][1]:^3}|{'-' if self.scores['2v2'][1] == None else self.scores['2v2'][1]:^3}|{'-' if self.scores['3v3_A'][1] == None else self.scores['3v3_A'][1]:^6}|{'-' if self.scores['3v3_B'][1] == None else self.scores['3v3_B'][1]:^6}|{'-' if self.scores['3v3_C'][1] == None else self.scores['3v3_C'][1]:^6}|```"""
 
     def generate_match_composition(self) -> str:
         players = DB.rows(
@@ -229,16 +254,24 @@ class SixMansPrompt(View):
         threes_a = [row["UserID"] for row in players if row["Team"] == 1]
         threes_b = [row["UserID"] for row in players if row["Team"] == 2]
 
-        return (f"""### 1v1 Match {'[NOW PLAYING]' if self.game == SixMansMatchType.ONE_V_ONE else ''}
-{', '.join([self.bot.get_user(int(user_id)).display_name for user_id in ones_a]) if ones_a else 'TBD'} **vs** {
-           ', '.join([self.bot.get_user(int(user_id)).display_name for user_id in ones_b]) if ones_b else 'TBD'}
-### 2v2 Match {'[NOW PLAYING]' if self.game == SixMansMatchType.TWO_V_TWO else ''}
-{', '.join([self.bot.get_user(int(user_id)).display_name for user_id in twos_a]) if twos_a else 'TBD'} **vs** {
-           ', '.join([self.bot.get_user(int(user_id)).display_name for user_id in twos_b]) if twos_b else 'TBD'}
-### 3v3 Match {'[NOW PLAYING]' if self.game == SixMansMatchType.THREE_V_THREE else ''}
-{', '.join([self.bot.get_user(int(user_id)).display_name for user_id in threes_a]) if threes_a else 'TBD'} **vs** {
-           ', '.join([self.bot.get_user(int(user_id)).display_name for user_id in threes_b]) if threes_b else 'TBD'}
-""")
+        match self.game:
+            case SixMansMatchType.ONE_V_ONE:
+                return (f"""### Now Playing: 1v1 Match\n{self.generate_members_verse_string(ones_a, ones_b)}""")
+            case SixMansMatchType.TWO_V_TWO:
+                return (f"""### Now Playing: 2v2 Match\n{self.generate_members_verse_string(twos_a, twos_b)}""")
+            case SixMansMatchType.THREE_V_THREE_A:
+                return (f"""### Now Playing: 3v3 Match #1\n{self.generate_members_verse_string(threes_a, threes_b)}""")
+            case SixMansMatchType.THREE_V_THREE_B:
+                return (f"""### Now Playing: 3v3 Match #2\n{self.generate_members_verse_string(threes_a, threes_b)}""")
+            case SixMansMatchType.THREE_V_THREE_C:
+                return (f"""### Now Playing: 3v3 Match #3\n{self.generate_members_verse_string(threes_a, threes_b)}""")
+
+    def generate_members_verse_string(self, team_a, team_b):
+        team_a_string = ', '.join(
+            [self.bot.get_user(int(user_id)).mention for user_id in team_a])
+        team_b_string = ', '.join(
+            [self.bot.get_user(int(user_id)).mention for user_id in team_b])
+        return f"""{team_a_string if team_a else 'TBD'} **vs** {team_b_string if team_b else 'TBD'}"""
 
     def generate_embed(self):
         team_one_players = self.party.get_players(1)
@@ -300,10 +333,8 @@ class SixMansPrompt(View):
                 match self.game:
                     case SixMansMatchType.PRE_MATCH:
                         description = f"Now that we have our 1s players sorted, we are ready to get the ball rolling... *pun intended :D*\n\nAmongst yourselves, please nominate a player to host a private match. Whether you create separate 1v1, 2v2, and 3v3 matches or create a single 3v3 match and re-use it for all matches is entirely up to you.\n\nFrom this point onwards, if you would like to see the entire team composition, click the **View team composition** button below.\n\nThe next screen will show you a breakdown of the matches with specific team compositions for each match.\n\nWhen you are ready to move on, click the **Break out** button below and you will be moved automatically into separate channels. May the best team win!"
-                    case SixMansMatchType.ONE_V_ONE | SixMansMatchType.TWO_V_TWO | SixMansMatchType.THREE_V_THREE:
-                        match_type = self.get_match_type()
-                        # description = f"{self.generate_match_summary()}\n**You are now playing the {match_type} match.** All match scores will automatically populate where possible. If scores cannot be determined, a '-' will be displayed and you may amend the scores at the very end. Best of luck!\n\n{self.generate_match_composition()}"
-                        description = f"{self.generate_match_summary()}\n**You should now be in game playing!** All match scores will automatically populate where possible. If scores cannot be determined, a '-' will be displayed and you may amend the scores at the very end. Best of luck!\n\n{self.generate_match_composition()}\n\nOnce you have played all your matches, press the **Go to Match Reporting** button below."
+                    case SixMansMatchType.ONE_V_ONE | SixMansMatchType.TWO_V_TWO | SixMansMatchType.THREE_V_THREE_A | SixMansMatchType.THREE_V_THREE_B | SixMansMatchType.THREE_V_THREE_C:
+                        description = f"{self.generate_match_summary()}\n**You should now be in game playing!** All match scores will automatically populate where possible. If scores cannot be determined, a '-' will be displayed and you may amend the scores at the very end. Best of luck!\n\n{self.generate_match_composition()}\n\nOnly once you have played all your matches, press the **Go to Match Reporting** button below."
             case SixMansState.SCORE_VALIDATION:
                 team_a_scores = list(
                     self.party.reported_scores[self.party.captain_one.id].values())
@@ -360,21 +391,18 @@ class SixMansPrompt(View):
                     case SixMansMatchType.PRE_MATCH:
                         self.add_button(
                             "Break Out", discord.ButtonStyle.blurple, self.break_out_button_callback)
+                        self.add_button(
+                            "Stay Together", discord.ButtonStyle.grey, self.start_game)
                         self.add_button("View Team Composition", discord.ButtonStyle.grey,
                                         self.team_composition_callback, custom_id="team_comp")
-                    case SixMansMatchType.ONE_V_ONE | SixMansMatchType.TWO_V_TWO | SixMansMatchType.THREE_V_THREE:
-                        # match_label = self.get_match_type()
+                    case SixMansMatchType.ONE_V_ONE | SixMansMatchType.TWO_V_TWO | SixMansMatchType.THREE_V_THREE_A | SixMansMatchType.THREE_V_THREE_B | SixMansMatchType.THREE_V_THREE_C:
                         self.add_button(
                             f"Go to Match Reporting", discord.ButtonStyle.blurple, self.go_to_match_reporting_callback)
                         self.add_button("View Team Composition", discord.ButtonStyle.grey,
                                         self.team_composition_callback, custom_id="team_comp")
-                        # self.add_button(
-                        #     f"Surrender {match_label}", discord.ButtonStyle.red, self.surrender_button_callback)
             case SixMansState.SCORE_VALIDATION:
                 self.add_button(
                     "Review Matches", discord.ButtonStyle.blurple, self.send_report_view)
-                # self.add_button("View team composition", discord.ButtonStyle.grey,
-                #                 self.team_composition_callback, custom_id="team_comp")
             case SixMansState.POST_MATCH:
                 self.add_button("End Game", discord.ButtonStyle.red,
                                 self.cancel_button_callback)
@@ -401,11 +429,9 @@ class SixMansPrompt(View):
                                 SixMansState.CHOOSE_CAPTAIN_ONE, SixMansState.CHOOSE_1S_PLAYER] else 2 if self.state == SixMansState.CHOOSE_CAPTAIN_TWO else 0, reason=reason)
         await interaction.response.send_message(view=view, ephemeral=True)
 
-    async def break_out_button_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        if self.broken_out:
-            return
-        await self.create_break_out_rooms()
+    async def start_game(self, interaction: discord.Interaction = None):
+        if interaction != None:
+            await interaction.response.defer()
         self.game = SixMansMatchType.ONE_V_ONE
         DB.execute("INSERT INTO SixManGames () VALUES ()")
         self.party.game_id = DB.field("SELECT MAX(GameID) FROM SixManGames")
@@ -413,20 +439,21 @@ class SixMansPrompt(View):
                    self.party.game_id, self.party.party_id)
         await self.update_view()
 
-    async def surrender_button_callback(self, interaction: discord.Interaction):
-        match_type = self.get_match_type()
-        DB.execute(
-            f"UPDATE SixManGames SET {match_type}_{'A' if interaction.user.id == self.party.captain_one.id else 'B'} = %s WHERE GameID = %s", -1, self.party.game_id)
-        if self.party.calculate_winner() == 0:
-            self.game = SixMansMatchType.THREE_V_THREE if self.game == SixMansMatchType.TWO_V_TWO else SixMansMatchType.TWO_V_TWO
-            self.state = SixMansState.PLAYING
-        else:
-            self.state = SixMansState.POST_MATCH
-        await self.update_view()
-        return await interaction.response.send_message(f"You have surrendered the {match_type} match.", ephemeral=True)
+    async def break_out_button_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        if self.broken_out:
+            return
+        await self.create_break_out_rooms()
+        await self.start_game()
 
     async def go_to_match_reporting_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        if self.game != SixMansMatchType.THREE_V_THREE_C:
+            view = ConfirmButtons()
+            view.message = await interaction.followup.send("Are you sure you have played **all** the necessary matches? You can not go back after match reporting.", view=view, ephemeral=True)
+            await view.wait()
+            if not view.confirmed:
+                return
         self.state = SixMansState.SCORE_VALIDATION
         await self.update_view()
 
@@ -451,12 +478,30 @@ class SixMansPrompt(View):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+class ConfirmButtons(View):
+    def __init__(self, *, timeout=10):
+        super().__init__(timeout=timeout)
+        self.confirmed = None
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True
+        await self.message.edit(view=self)
+
+    @discord.ui.button(label="Yes", style=discord.ButtonStyle.green)
+    async def accept_button(self, interaction: discord.Interaction, button: Button):
+        self.confirmed = True
+        self.clear_items()
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
+
 class TeamDropdown(Select):
     def __init__(self, teams: list[str], match_type: str, winner: int = -1):
         self.match_type = match_type
         options = [discord.SelectOption(
             label=team, value=idx, default=winner == idx) for idx, team in enumerate(teams)]
-        super().__init__(placeholder=f"Select the winning team for the {match_type} series",
+        super().__init__(placeholder=f"Select the winning team for the {match_type.split('_')[0]} series",
                          min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
@@ -470,11 +515,17 @@ class ReportMatches(View):
         self.ctx = ctx
         self.selects = list()
 
-        for match in self.ctx.scores.items():
-            teams = [f"Team {self.ctx.party.captain_one.display_name}",
-                     f"Team {self.ctx.party.captain_two.display_name}"]
-            winner = (0 if match[1][0] > match[1][1] else 1) if all(
-                map(lambda s: s is not None, match[1])) else -1
+        teams = [f"Team {self.ctx.party.captain_one.display_name}",
+                 f"Team {self.ctx.party.captain_two.display_name}"]
+
+        # 1v1, 2v2 series
+        for match in list(self.ctx.scores.items())[:3]:
+            if match[0].startswith("3v3"):
+                winner = self.ctx.party.calculate_winner([0 if value is None else value for tup in list(
+                    self.ctx.scores.values())[2:] for value in tup]) - 1
+            else:
+                winner = (0 if match[1][0] > match[1][1] else 1) if all(
+                    map(lambda s: s is not None, match[1])) else -1
             select = TeamDropdown(teams, match[0], winner)
             self.add_item(select)
             self.selects.append(select)
@@ -498,8 +549,32 @@ class ReportMatches(View):
                           True, select.options)).value)] = 1
             self.ctx.party.reported_scores[interaction.user.id][match_type] = tuple(
                 score)
+            if match_type.startswith("3v3"):
+                for m in ["3v3_B", "3v3_C"]:
+                    score = [0, 0]
+                    if select.values:
+                        score[int(select.values[0])] = 1
+                    else:
+                        score[int(next(filter(lambda o: o.default ==
+                                              True, select.options)).value)] = 1
+                    self.ctx.party.reported_scores[interaction.user.id][m] = tuple(
+                        score)
 
-        await interaction.response.send_message("Your match report has been submitted successfully. Thanks!", ephemeral=True)
+        team_a_scores = list(
+            self.ctx.party.reported_scores[self.ctx.party.captain_one.id].values())
+        team_b_scores = list(
+            self.ctx.party.reported_scores[self.ctx.party.captain_two.id].values())
+
+        if all(map(lambda s: s == (None, None), team_a_scores)) and not all(map(lambda s: s == (None, None), team_b_scores)):
+            waiting_message = f"We have received your report. Thanks! We are currently waiting for {self.ctx.party.captain_one.mention} to review the match results."
+        elif not all(map(lambda s: s == (None, None), team_a_scores)) and all(map(lambda s: s == (None, None), team_b_scores)):
+            waiting_message = f"We have received your report. Thanks! We are currently waiting for {self.ctx.party.captain_two.mention} to review the match results."
+        elif team_a_scores != team_b_scores:
+            waiting_message = f"**Unfortunately, the reported match outcomes do not match across both team captains. Please resolve this discrepancy.**"
+        else:
+            waiting_message = f"Thanks for reporting the match outcomes. Your report matches the opposition's report."
+
+        await interaction.response.send_message(waiting_message, ephemeral=True)
         # Check if both scores are present and compare
         scores = list(self.ctx.party.reported_scores.values())
         if scores[0] == scores[1]:
@@ -508,6 +583,10 @@ class ReportMatches(View):
                 # Both scores set and equal
                 DB.execute(f"UPDATE SixManGames SET {match_type}_A = %s, {match_type}_B = %s WHERE GameID = %s",
                            scores[0][match_type][0], scores[1][match_type][1], self.ctx.party.game_id)
+                if match_type.startswith("3v3"):
+                    for m in ["3v3_B", "3v3_C"]:
+                        DB.execute(f"UPDATE SixManGames SET {m}_A = %s, {m}_B = %s WHERE GameID = %s",
+                                   scores[0][m][0], scores[1][m][1], self.ctx.party.game_id)
             self.ctx.state = SixMansState.POST_MATCH
         await self.ctx.update_view()
 
@@ -664,11 +743,11 @@ class QueuePrompt(View):
         else:
             self.ctx.player_queue.add(interaction.user)
             await interaction.response.send_message(embed=interaction.client.create_embed("SCUFFBOT SIX MANS", f"You have joined the six mans queue. ({len(self.ctx.player_queue)}/{PARTY_SIZE})", None), ephemeral=True)
-            await self.update_view()
             if ((party := self.ctx.player_queue.get_party())):
                 lobby_id, party_id = await self.ctx.create_party(party)
                 await self.update_view()
                 await self.ctx.start(lobby_id, party_id)
+            await self.update_view()
 
     async def leave_callback(self, interaction: discord.Interaction):
         if not interaction.user in self.ctx.player_queue:
@@ -706,6 +785,9 @@ class UserDropdownView(View):
         self.add_item(self.submit_button)
 
     async def submit_button_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        if not self.user_dropdown.values:
+            return await interaction.followup.send("Your selection can not be empty.", ephemeral=True)
         match self.ctx.state:
             case SixMansState.CHOOSE_CAPTAIN_ONE:
                 for user_id in self.user_dropdown.values:

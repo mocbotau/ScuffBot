@@ -17,14 +17,14 @@ If you would like to run locally:
 4. Copy [/db/.env.template](./db/.env.template) to `db/.env`, and adjust values as necessary.
 5. Run the bot with `docker compose up -d --build`.
 
+If you have something to suggest, whether it is feedback or a bug report, put it in the thread below. As I acknowledge your feedback, I will update this list. This is what I have so far:
+
 # Feedback
 
 - [x] Implement a queue timeout, perhaps 45-60mins?
 - [x] Notify the channel when a player has joined the queue
-- [ ] Have options to do a 1s (best of 1), 2s (best of 1), 3s (best of 3) and/or have the option to configure the game to be a best of 1 or best of 3
 - [ ] Have request to spectate six mans matches
 - [x] Wait for all 6 people to join call before starting otherwise cancel after 5 mins
-- [ ] Ability to substitute players into the game?
 - [ ] Incorporate personal stats page
 - [x] Disable general text chat messaging
 - [x] Change Team A/B to actual team names
@@ -33,14 +33,11 @@ If you would like to run locally:
 - [x] Ping the six mans lobby channel when the lobby is created
 - [ ] Connect up the MMR system
 - [ ] Send players back to the general six mans voice channel after the game has been ended
-- [ ] Convert score reporting to win/loss reporting
+- [x] Convert score reporting to win/loss reporting
 - [x] Add administrative commands to manipulate six man lobbies
   - Added `close` command
-- [ ] Have bot automatically infer scores
-- [ ] Change score report system to a team win report
 
 # Bugs
 
 - [x] Users get kicked from queue even after finding a match
-- [ ] When captains select players after being deselected on the "choose players" prompt, the selected players get booted to the opposite team [COULD NOT REPLICATE]
 - [x] Captains are able to click select 1s players multiple times resulting in multiple 1s players in the party per team

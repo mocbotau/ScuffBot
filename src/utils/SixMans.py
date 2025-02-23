@@ -26,7 +26,9 @@ class SixMansMatchType(Enum):
     PRE_MATCH = 0
     ONE_V_ONE = 1
     TWO_V_TWO = 2
-    THREE_V_THREE = 3
+    THREE_V_THREE_A = 3
+    THREE_V_THREE_B = 4
+    THREE_V_THREE_C = 5
 
 
 class SixMansParty():
@@ -41,8 +43,11 @@ class SixMansParty():
         self.captain_two: Union[None, discord.Member] = None
         self.generate_captains()
 
-        self.reported_scores = {self.captain_one.id: {"1v1": (None, None), "2v2": (None, None), "3v3": (
-            None, None)}, self.captain_two.id: {"1v1": (None, None), "2v2": (None, None), "3v3": (None, None)}}
+        self.reported_scores = {
+            self.captain_one.id: {"1v1": (None, None), "2v2": (None, None), "3v3_A": (None, None), "3v3_B": (None, None), "3v3_C": (None, None)},
+            self.captain_two.id: {"1v1": (None, None), "2v2": (None, None), "3v3_A": (
+                None, None), "3v3_B": (None, None), "3v3_C": (None, None)}
+        }
 
     async def get_details(self):
         return DB.row("SELECT * FROM SixManLobby WHERE LobbyID = %s", self.lobby_id)
@@ -62,11 +67,16 @@ class SixMansParty():
         DB.execute(
             "UPDATE SixManUsers SET Type = 2, Team = 2 WHERE UserID = %s", self.captain_two.id)
 
-    def calculate_winner(self) -> Literal[0, 1, 2]:
+    def calculate_winner(self, data=None) -> Literal[0, 1, 2]:
         if self.game_id == None:
             return 0
-        data = [0 if x is None else x for x in DB.row(
-            "SELECT 1v1_A, 1v1_B, 2v2_A, 2v2_B, 3v3_A, 3v3_B FROM SixManGames WHERE GameID = %s", self.game_id).values()]
+        if data == None:
+            threes_winner = self.calculate_winner(list(DB.row(
+                "SELECT 3v3_A_A, 3v3_A_B, 3v3_B_A, 3v3_B_B, 3v3_C_A, 3v3_C_B FROM SixManGames WHERE GameID = %s", self.game_id).values()))
+            threes_score = [0, 0]
+            threes_score[threes_winner - 1] = 1
+            data = [0 if x is None else x for x in list(DB.row(
+                "SELECT 1v1_A, 1v1_B, 2v2_A, 2v2_B FROM SixManGames WHERE GameID = %s", self.game_id).values()) + threes_score]
 
         team_a_wins = sum(data[i] > data[i + 1]
                           for i in range(0, len(data), 2))
