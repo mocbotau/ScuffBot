@@ -8,6 +8,7 @@ from src.lib.bot import config
 from typing import Any, Callable, Union
 import discord
 import logging
+import uuid
 
 from src.utils.SixMans import LOBBY_TIMEOUT, PARTY_SIZE, SixMansQueue, SixMansState, SixMansMatchType, SixMansParty
 
@@ -124,7 +125,7 @@ class SixMansPrompt(View):
             await self.update_view()
 
     async def interaction_check(self, interaction: discord.Interaction):
-        if "custom_id" in interaction.data and interaction.data["custom_id"] == "team_comp":
+        if "custom_id" in interaction.data and interaction.data["custom_id"] in ["team_comp", "match_info"]:
             return True
         match self.state:
             case SixMansState.CHOOSE_CAPTAIN_ONE:
@@ -332,7 +333,15 @@ class SixMansPrompt(View):
             case SixMansState.PLAYING:
                 match self.game:
                     case SixMansMatchType.PRE_MATCH:
-                        description = f"Now that we have our 1s players sorted, we are ready to get the ball rolling... *pun intended :D*\n\nAmongst yourselves, please nominate a player to host a private match. Whether you create separate 1v1, 2v2, and 3v3 matches or create a single 3v3 match and re-use it for all matches is entirely up to you.\n\nFrom this point onwards, if you would like to see the entire team composition, click the **View team composition** button below.\n\nThe next screen will show you a breakdown of the matches with specific team compositions for each match.\n\nWhen you are ready to move on, click the **Break out** button below and you will be moved automatically into separate channels. May the best team win!"
+                        match_code = f"SCUFF-{uuid.uuid4().hex.upper()[:3]}"
+                        match_password = uuid.uuid4().hex.upper()[:6]
+                        DB.execute(
+                            "INSERT INTO SixManGames (MatchCode, MatchPassword) VALUES (%s, %s)", match_code, match_password)
+                        self.party.game_id = DB.field(
+                            "SELECT MAX(GameID) FROM SixManGames")
+                        DB.execute("UPDATE SixManParty SET GameID = %s WHERE PartyID = %s",
+                                   self.party.game_id, self.party.party_id)
+                        description = f"Now that we have our 1s players sorted, we are ready to get the ball rolling... *pun intended :D*\n\nNominate a player to create a 3v3 private match with a lobby code of **{match_code}** and a password of **{match_password}**.\n\nOnce everyone is in game, either click the **Break Out** or **Stay Together** button below to split off into separate calls or stay in the current voice channel respectively. May the best team win!"
                     case SixMansMatchType.ONE_V_ONE | SixMansMatchType.TWO_V_TWO | SixMansMatchType.THREE_V_THREE_A | SixMansMatchType.THREE_V_THREE_B | SixMansMatchType.THREE_V_THREE_C:
                         description = f"{self.generate_match_summary()}\n**You should now be in game playing!** All match scores will automatically populate where possible. If scores cannot be determined, a '-' will be displayed and you may amend the scores at the very end. Best of luck!\n\n{self.generate_match_composition()}\n\nOnly once you have played all your matches, press the **Go to Match Reporting** button below."
             case SixMansState.SCORE_VALIDATION:
@@ -400,6 +409,8 @@ class SixMansPrompt(View):
                             f"Go to Match Reporting", discord.ButtonStyle.blurple, self.go_to_match_reporting_callback)
                         self.add_button("View Team Composition", discord.ButtonStyle.grey,
                                         self.team_composition_callback, custom_id="team_comp")
+                        self.add_button("View Match Info", discord.ButtonStyle.grey,
+                                        self.match_info_callback, custom_id="match_info")
             case SixMansState.SCORE_VALIDATION:
                 self.add_button(
                     "Review Matches", discord.ButtonStyle.blurple, self.send_report_view)
@@ -433,10 +444,6 @@ class SixMansPrompt(View):
         if interaction != None:
             await interaction.response.defer()
         self.game = SixMansMatchType.ONE_V_ONE
-        DB.execute("INSERT INTO SixManGames () VALUES ()")
-        self.party.game_id = DB.field("SELECT MAX(GameID) FROM SixManGames")
-        DB.execute("UPDATE SixManParty SET GameID = %s WHERE PartyID = %s",
-                   self.party.game_id, self.party.party_id)
         await self.update_view()
 
     async def break_out_button_callback(self, interaction: discord.Interaction):
@@ -473,6 +480,19 @@ class SixMansPrompt(View):
             name=f"Team {self.party.captain_one.display_name}", value="\n".join(team_one_str))
         embed.add_field(
             name=f"Team {self.party.captain_two.display_name}", value="\n".join(team_two_str))
+        embed.set_footer(
+            text=f"Party {'N/A' if not self.party.party_id else self.party.party_id} | Game {'N/A' if not self.party.game_id else self.party.game_id}")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    async def match_info_callback(self, interaction: discord.Interaction):
+        data = DB.row("SELECT MatchCode, MatchPassword FROM SixManGames WHERE GameID = %s",
+                      self.party.game_id)
+        embed: discord.Embed = self.bot.create_embed(
+            f"ScuffBot Six Mans #{self.party.lobby_id}", "", None)
+        embed.add_field(
+            name=f"Match Code", value=data["MatchCode"])
+        embed.add_field(
+            name=f"Match Password", value=data["MatchPassword"])
         embed.set_footer(
             text=f"Party {'N/A' if not self.party.party_id else self.party.party_id} | Game {'N/A' if not self.party.game_id else self.party.game_id}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
