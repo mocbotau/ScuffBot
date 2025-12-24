@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../infra-helm-charts/charts/generic-app/values.schema.json
+environment: {{ .Environment.Values.environment | quote }}
+version: {{ requiredEnv "COMMIT_SHA" | quote }}
+
+deployments:
+  - name: "scuffbot"
+    image: "mocbotau/cloud:scuffbot-{{ .Environment.Values.environment }}"
+    config:
+      fileVariable: "scuffbotConfig"
+    environment:
+      BOT_TOKEN: "/secrets/bot-token"
+      CONFIG_FILE: "/config/config.yaml"
+    secretProviderClass:
+      projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
+      secrets:
+        - fileName: "bot-token"
+          secretKey: "BOT_TOKEN"
