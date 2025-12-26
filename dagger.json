@@ -1,15 +1,9 @@
 {
-  "name": "Scuffbot",
+  "name": "scuffbot",
   "engineVersion": "v0.19.8",
-  "sdk": {
-    "source": "go"
-  },
-  "dependencies": [
-    {
-      "name": "docker",
-      "source": "https://github.com/mocbotau/infra-dagger-modules/modules/docker@main",
-      "pin": "1796026f67576c4024c37937d6db12358e4d2e70"
-    }
-  ],
-  "source": ".dagger"
+  "blueprint": {
+    "name": "generic-deploy",
+    "source": "github.com/mocbotau/infra-dagger-modules/blueprints/generic-deploy@v0.1.1",
+    "pin": "8416af27bcd341f677433f2f23f39f560b9d7903"
+  }
 }
