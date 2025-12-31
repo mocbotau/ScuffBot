@@ -1,0 +1,37 @@
+environments:
+  staging:
+    values:
+      - environment: staging
+  prod:
+    values:
+      - environment: prod
+
+---
+repositories:
+  - name: chartmuseum
+    url: https://chartmuseum.masterofcubesau.com
+    username: {{ requiredEnv "CHARTMUSEUM_USER" }}
+    password: {{ requiredEnv "CHARTMUSEUM_PASS" }}
+
+helmDefaults:
+  atomic: true
+  cleanupOnFail: true
+  createNamespace: true
+  suppressOutputLineRegex:
+    - "version"
+  timeout: 60
+  wait: true
+  waitForJobs: true
+
+releases:
+  - name: scuffbot
+    chart: chartmuseum/generic-app
+    version: 0.4.0
+    namespace: scuffbot-{{ .Environment.Values.environment }}
+    values:
+      - infra/values.yaml.gotmpl
+    set:
+      - name: scuffbotConfig
+        file: config.yaml
+      - name: sqlInitFile
+        file: db/data/init.sql

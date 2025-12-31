@@ -1,10 +1,10 @@
-# TODO: Replace schema link below to permanent location
 # yaml-language-server: $schema=../../infra-helm-charts/charts/generic-app/values.schema.json
-environment: "${ENVIRONMENT}"
-version: "${COMMIT_SHA}"
+environment: {{ .Environment.Values.environment | quote }}
+version: {{ requiredEnv "COMMIT_SHA" | quote }}
+
 deployments:
   - name: "scuffbot"
-    image: "${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO}:${REPO_NAME}-${ENVIRONMENT}"
+    image: "mocbotau/cloud:scuffbot-{{ .Environment.Values.environment }}"
     config:
       fileVariable: "scuffbotConfig"
     environment:
@@ -14,9 +14,11 @@ deployments:
       DB_HOST: "service-scuffbot-db"
       DB_PASSWORD_FILE: "/secrets/db-password"
       DB_USER: "SCUFFBOT"
-    secrets:
-      bot-token: "${BOT_TOKEN}"
-      db-password: "${DB_PASSWORD}"
+    secretProviderClass:
+      projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
+      secrets:
+        - secretKey: "BOT_TOKEN"
+        - secretKey: "DB_PASSWORD"
 
 statefulSets:
   - name: "scuffbot-db"
@@ -34,14 +36,17 @@ statefulSets:
     readinessProbe:
       tcpSocket:
         port: 3306
-    secrets:
-      db-password: "${DB_PASSWORD}"
-      db-root-password: "${DB_ROOT_PASSWORD}"
+    secretProviderClass:
+      projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
+      secrets:
+        - secretKey: "DB_PASSWORD"
+        - secretKey: "DB_ROOT_PASSWORD"
     service:
       type: "ClusterIP"
       port: 3306
       targetPort: 3306
     volumes:
-      - name: "scuffbot-db"
+      - name: "scuffbot-db-longhorn"
+        storageClass: "longhorn"
         mountPath: "/var/lib/mysql"
         size: "1Gi"
