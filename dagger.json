@@ -1,9 +1,9 @@
 {
   "name": "ScuffBot",
-  "engineVersion": "v0.19.9",
+  "engineVersion": "v0.20.3",
   "blueprint": {
     "name": "generic-deploy",
-    "source": "github.com/mocbotau/infra-dagger-modules/blueprints/generic-deploy@v0.2.1",
-    "pin": "d3b5d9928ca1aa7ab0199362d2d0f0e7cd6e792a"
+    "source": "github.com/mocbotau/infra-dagger-modules/blueprints/generic-deploy@v0.2.3",
+    "pin": "baa540a83e74639fb6ff0b1ef1a51a35dd688e85"
   }
 }
