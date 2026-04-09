@@ -22,3 +22,7 @@ docker-compose.yaml
 
 .python-version
 *.md
+
+.dagger
+dagger.json
+helmfile.yaml.gotmpl
