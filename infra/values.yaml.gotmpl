@@ -10,7 +10,43 @@ deployments:
     environment:
       BOT_TOKEN: "/secrets/bot-token"
       CONFIG_FILE: "/config/config.yaml"
+      DB_DATABASE: "SCUFFBOT"
+      DB_HOST: "service-scuffbot-db"
+      DB_PASSWORD_FILE: "/secrets/db-password"
+      DB_USER: "SCUFFBOT"
     secretProviderClass:
       projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
       secrets:
         - secretKey: "BOT_TOKEN"
+        - secretKey: "DB_PASSWORD"
+
+statefulSets:
+  - name: "scuffbot-db"
+    image: "mysql:9.2.0"
+    updateStrategy: "OnDelete"
+    config:
+      fileName: "init.sql"
+      fileVariable: "sqlInitFile"
+      mountPath: "/docker-entrypoint-initdb.d/"
+    environment:
+      MYSQL_DATABASE: "SCUFFBOT"
+      MYSQL_USER: "SCUFFBOT"
+      MYSQL_PASSWORD_FILE: "/secrets/db-password"
+      MYSQL_ROOT_PASSWORD_FILE: "/secrets/db-root-password"
+    readinessProbe:
+      tcpSocket:
+        port: 3306
+    secretProviderClass:
+      projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
+      secrets:
+        - secretKey: "DB_PASSWORD"
+        - secretKey: "DB_ROOT_PASSWORD"
+    service:
+      type: "ClusterIP"
+      port: 3306
+      targetPort: 3306
+    volumes:
+      - name: "scuffbot-db-longhorn"
+        storageClass: "longhorn"
+        mountPath: "/var/lib/mysql"
+        size: "1Gi"

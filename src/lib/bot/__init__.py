@@ -14,10 +14,12 @@ load_dotenv(env_file)
 with open(os.environ["CONFIG_FILE"], "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
+
 class SCUFFBOT(commands.Bot):
 
     def __init__(self, is_dev):
-        super().__init__(command_prefix="!", owner_id=169402073404669952, intents=discord.Intents.all())
+        super().__init__(command_prefix="/",
+                         owner_id=169402073404669952, intents=discord.Intents.all())
         self.is_dev = is_dev
         self.mode = "DEVELOPMENT" if is_dev else "PRODUCTION"
 
@@ -32,7 +34,6 @@ class SCUFFBOT(commands.Bot):
         for handler in logging.getLogger().handlers:
             if handler.name == "file" and os.path.isfile('logs/latest.log'):
                 handler.doRollover()
-        logging.getLogger('discord').setLevel(logging.DEBUG)
 
     async def load_cog_manager(self):
         await self.load_extension("src.lib.cogs.Cogs")
@@ -41,14 +42,17 @@ class SCUFFBOT(commands.Bot):
         super().run(bot_token, log_handler=None)
 
     def create_embed(self, title, description, colour):
-        embed = discord.Embed(title=None, description=description, colour=colour if colour else 0xDC3145, timestamp=discord.utils.utcnow())
-        embed.set_author(name=title if title else None, icon_url=self.avatar_url)
+        embed = discord.Embed(title=None, description=description,
+                              colour=colour if colour else 0xDC3145, timestamp=discord.utils.utcnow())
+        embed.set_author(name=title if title else None,
+                         icon_url=self.avatar_url)
         return embed
 
     #  Doesn't work, need to look into
     @staticmethod
     def has_permissions(**perms):
         original = app_commands.checks.has_permissions(**perms)
+
         async def extended_check(interaction):
             if interaction.guild is None:
                 return False
@@ -63,15 +67,16 @@ class SCUFFBOT(commands.Bot):
         self.appinfo = await super().application_info()
         self.avatar_url = self.appinfo.icon.url if self.appinfo.icon is not None else None
         self.logger.info(
-            f"Connected on {self.user.name} ({self.mode}) | d.py v{str(discord.__version__)}"
+            f"Connected on {self.user.name} | d.py v{str(discord.__version__)}"
         )
 
     async def on_interaction(self, interaction):
-        self.logger.info(f"[COMMAND] [{interaction.guild} // {interaction.guild.id}] {interaction.user} ({interaction.user.id}) used command {interaction.command.name}")
+        self.logger.info(
+            f"[COMMAND] [{interaction.guild} // {interaction.guild.id}] {interaction.user} ({interaction.user.id}) used command {interaction.command.name}")
 
     async def on_message(self, message):
         await self.wait_until_ready()
-        if(isinstance(message.channel, discord.DMChannel) and message.author.id == self.owner_id):
+        if (isinstance(message.channel, discord.DMChannel) and message.author.id == self.owner_id):
             message_components = message.content.lower().split(" ")
             match message_components[0]:
                 case "sync":
