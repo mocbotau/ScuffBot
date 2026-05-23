@@ -14,5 +14,7 @@ If you would like to run locally:
    | `bot-token` | Token for Discord bot |
    | `db-password` | Default password for database |
    | `db-root-password` | Root password for the database |
+   | `twitch-client-id` | Twitch app client id |
+   | `twitch-client-secret` | Twitch app client secret |
 4. Copy [/db/.env.template](./db/.env.template) to `db/.env`, and adjust values as necessary.
 5. Run the bot with `docker compose up -d --build`.

@@ -25,6 +25,7 @@ class SCUFFBOT(commands.Bot):
 
     async def setup_hook(self):
         self.setup_logger()
+        self.appinfo = await super().application_info()
         await self.load_cog_manager()
 
     def setup_logger(self):
@@ -45,7 +46,7 @@ class SCUFFBOT(commands.Bot):
         embed = discord.Embed(title=None, description=description,
                               colour=colour if colour else 0xDC3145, timestamp=discord.utils.utcnow())
         embed.set_author(name=title if title else None,
-                         icon_url=self.avatar_url)
+                         icon_url=self.appinfo.icon.url)
         return embed
 
     #  Doesn't work, need to look into
@@ -64,8 +65,6 @@ class SCUFFBOT(commands.Bot):
         return interaction.user.id in config["DEVELOPERS"]
 
     async def on_ready(self):
-        self.appinfo = await super().application_info()
-        self.avatar_url = self.appinfo.icon.url if self.appinfo.icon is not None else None
         self.logger.info(
             f"Connected on {self.user.name} | d.py v{str(discord.__version__)}"
         )
