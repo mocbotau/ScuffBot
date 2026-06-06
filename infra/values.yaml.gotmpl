@@ -14,11 +14,15 @@ deployments:
       DB_HOST: "service-scuffbot-db"
       DB_PASSWORD_FILE: "/secrets/db-password"
       DB_USER: "SCUFFBOT"
+      TWITCH_CLIENT_ID: "/secrets/twitch-client-id"
+      TWITCH_CLIENT_SECRET: "/secrets/twitch-client-secret"
     secretProviderClass:
       projectId: "e1420e9b-7c7d-4f54-b916-74d17f594a83"
       secrets:
         - secretKey: "BOT_TOKEN"
         - secretKey: "DB_PASSWORD"
+        - secretKey: "TWITCH_CLIENT_ID"
+        - secretKey: "TWITCH_CLIENT_SECRET"
 
 statefulSets:
   - name: "scuffbot-db"
